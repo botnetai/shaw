@@ -1,0 +1,83 @@
+{
+  "previewText": "Hello, this is a preview of my voice. How do I sound?",
+  "voices": [
+    {
+      "id": "cartesia-coral",
+      "tts": "cartesia/sonic-3:9626c31c-bec5-4cca-baa8-f8ba9e84c8bc",
+      "provider": "cartesia",
+      "name": "Coral",
+      "description": "Warm and friendly voice"
+    },
+    {
+      "id": "cartesia-breeze",
+      "tts": "cartesia/sonic-3:b5c0c5c5-5c5c-5c5c-5c5c-5c5c5c5c5c5c",
+      "provider": "cartesia",
+      "name": "Breeze",
+      "description": "Calm and professional male voice"
+    },
+    {
+      "id": "cartesia-ember",
+      "tts": "cartesia/sonic-3:c6d1d6d6-d6d6-d6d6-d6d6-d6d6d6d6d6d6",
+      "provider": "cartesia",
+      "name": "Ember",
+      "description": "Energetic and expressive voice"
+    },
+    {
+      "id": "cartesia-nova",
+      "tts": "cartesia/sonic-3:d7e2e7e7-e7e7-e7e7-e7e7-e7e7e7e7e7e7",
+      "provider": "cartesia",
+      "name": "Nova",
+      "description": "Clear and articulate voice"
+    },
+    {
+      "id": "cartesia-zen",
+      "tts": "cartesia/sonic-3:e8f3f8f8-f8f8-f8f8-f8f8-f8f8f8f8f8f8",
+      "provider": "cartesia",
+      "name": "Zen",
+      "description": "Soothing and calm voice"
+    },
+    {
+      "id": "elevenlabs-rachel",
+      "tts": "elevenlabs/eleven_turbo_v2_5:21m00Tcm4TlvDq8ikWAM",
+      "provider": "elevenlabs",
+      "name": "Rachel",
+      "description": "Professional female voice"
+    },
+    {
+      "id": "elevenlabs-domi",
+      "tts": "elevenlabs/eleven_turbo_v2_5:AZnzlk1XvdvUeBnXmlld",
+      "provider": "elevenlabs",
+      "name": "Domi",
+      "description": "Confident female voice"
+    },
+    {
+      "id": "elevenlabs-bella",
+      "tts": "elevenlabs/eleven_turbo_v2_5:EXAVITQu4vr4xnSDxMaL",
+      "provider": "elevenlabs",
+      "name": "Bella",
+      "description": "Warm female voice"
+    },
+    {
+      "id": "elevenlabs-josh",
+      "tts": "elevenlabs/eleven_turbo_v2_5:TxGEqnHWrfWFTfGW9XjX",
+      "provider": "elevenlabs",
+      "name": "Josh",
+      "description": "Professional male voice"
+    },
+    {
+      "id": "elevenlabs-arnold",
+      "tts": "elevenlabs/eleven_turbo_v2_5:VR6AewLTigWG4xSOukaG",
+      "provider": "elevenlabs",
+      "name": "Arnold",
+      "description": "Deep male voice"
+    },
+    {
+      "id": "elevenlabs-adam",
+      "tts": "elevenlabs/eleven_turbo_v2_5:pNInz6obpgDQGcFmaJgB",
+      "provider": "elevenlabs",
+      "name": "Adam",
+      "description": "Clear male voice"
+    }
+  ]
+}
+

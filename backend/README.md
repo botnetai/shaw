@@ -151,6 +151,63 @@ Auto-reload on file changes:
 npm run dev
 ```
 
+## Generate Voice Previews
+
+Voice previews are pre-generated static audio files that users can play when selecting a voice. The system automatically detects new voices and generates missing previews.
+
+### Adding New Voices
+
+1. **Add voice to `voice-config.json`**:
+   ```json
+   {
+     "id": "cartesia-new-voice",
+     "tts": "cartesia/sonic-3:voice-id-here",
+     "provider": "cartesia",
+     "name": "New Voice",
+     "description": "Voice description"
+   }
+   ```
+
+2. **Run the generator**:
+   ```bash
+   npm run generate-previews
+   ```
+   
+   This will:
+   - ✅ Detect which previews are missing
+   - ✅ Generate only new voice previews automatically
+   - ✅ Skip existing previews (unless using `--all` flag)
+
+3. **Commit and deploy**:
+   - Commit the new preview files
+   - Deploy to Railway/production
+   - Users will automatically see new voices with previews
+
+### Manual Commands
+
+```bash
+# Generate missing previews only (default)
+npm run generate-previews
+
+# Regenerate all previews
+npm run generate-previews -- --all
+```
+
+### CI/CD Integration
+
+Add to your Railway build script or CI/CD pipeline:
+```bash
+npm run generate-previews
+```
+
+This ensures new voices get previews automatically on every deployment.
+
+### File Structure
+
+- **Config**: `backend/voice-config.json` - Single source of truth for voices
+- **Previews**: `backend/public/voice-previews/` - Generated audio files
+- **Served at**: `/voice-previews/{voiceId}.{ext}` - Automatically served by Express
+
 ## Troubleshooting
 
 **"LiveKit credentials not configured"**

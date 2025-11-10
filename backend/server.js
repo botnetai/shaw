@@ -1,17 +1,46 @@
 import { config } from 'dotenv';
-config(); // Load env vars FIRST
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+// Get the directory of the current module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load .env file from the backend directory
+const envResult = config({ path: join(__dirname, '.env') });
+
+if (envResult.error) {
+  console.warn('⚠️  Warning: Could not load .env file:', envResult.error.message);
+  console.warn('   Make sure .env exists in the backend directory');
+} else {
+  console.log('✅ Loaded .env file successfully');
+}
 
 import express from 'express';
 import cors from 'cors';
 import crypto from 'crypto';
+import https from 'https';
+import http from 'http';
+import path from 'path';
+import fs from 'fs';
 import db from './database.js';
-import { generateRoomName, generateLiveKitToken, getLiveKitUrl } from './livekit.js';
+import { generateRoomName, generateLiveKitToken, getLiveKitUrl, logLiveKitConfig } from './livekit.js';
+
+// Log LiveKit configuration after env is loaded and modules are imported
+logLiveKitConfig();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+
+// Serve static voice preview files
+const previewsDir = path.join(__dirname, 'public', 'voice-previews');
+if (fs.existsSync(previewsDir)) {
+  app.use('/voice-previews', express.static(previewsDir));
+  console.log(`✅ Serving voice previews from: ${previewsDir}`);
+}
 
 // Simple auth middleware (checks Bearer token exists)
 const authenticateToken = (req, res, next) => {
@@ -36,11 +65,33 @@ app.get('/health', (req, res) => {
 // 1. POST /v1/sessions/start - Start new session
 app.post('/v1/sessions/start', authenticateToken, async (req, res) => {
   try {
-    const { context } = req.body;
+    const { context, model, tts } = req.body;
 
     if (!context || !['phone', 'carplay'].includes(context)) {
       return res.status(400).json({ error: 'Invalid context' });
     }
+
+    // Validate model if provided (optional)
+    // Models use LiveKit Inference provider/model format
+    // See: https://docs.livekit.io/agents/models/#inference
+    const validModels = [
+      // OpenAI models available through LiveKit Inference
+      'openai/gpt-4.1',
+      'openai/gpt-4.1-mini',
+      'openai/gpt-4.1-nano',
+      // Google models available through LiveKit Inference
+      'google/gemini-2.5-pro',
+      'google/gemini-2.5-flash-lite'
+    ];
+    
+    const selectedModel = model && validModels.includes(model) ? model : null;
+
+    // Validate TTS voice if provided (optional)
+    // TTS uses format: "provider/model:voice-id" (e.g., "cartesia/sonic-3:voice-id")
+    // See: https://docs.livekit.io/agents/models/tts/#inference
+    // Default to Cartesia Sonic-3 (LiveKit's default) if not specified
+    const defaultTTS = 'cartesia/sonic-3:9626c31c-bec5-4cca-baa8-f8ba9e84c8bc'; // Cartesia Coral (LiveKit quickstart default)
+    const selectedTTS = tts && typeof tts === 'string' && tts.includes(':') ? tts : defaultTTS;
 
     const sessionId = `session-${crypto.randomUUID()}`;
     const roomName = generateRoomName();
@@ -52,16 +103,27 @@ app.post('/v1/sessions/start', authenticateToken, async (req, res) => {
 
     // Store session in database
     const stmt = db.prepare(`
-      INSERT INTO sessions (id, user_id, context, started_at, logging_enabled_snapshot, summary_status)
-      VALUES (?, ?, ?, ?, 1, 'pending')
+      INSERT INTO sessions (id, user_id, context, started_at, logging_enabled_snapshot, summary_status, model)
+      VALUES (?, ?, ?, ?, 1, 'pending', ?)
     `);
-    stmt.run(sessionId, req.userId, context, new Date().toISOString());
+    stmt.run(sessionId, req.userId, context, new Date().toISOString(), selectedModel);
+
+    // Log model and voice selection for debugging
+    if (selectedModel) {
+      console.log(`Session ${sessionId} started with model: ${selectedModel}`);
+    } else {
+      console.log(`Session ${sessionId} started with default model (not specified)`);
+    }
+    
+    console.log(`Session ${sessionId} using TTS voice: ${selectedTTS}`);
 
     res.json({
       session_id: sessionId,
       livekit_url: livekitUrl,
       livekit_token: livekitToken,
-      room_name: roomName
+      room_name: roomName,
+      model: selectedModel || 'default',
+      tts: selectedTTS
     });
   } catch (error) {
     console.error('Start session error:', error);
@@ -69,17 +131,79 @@ app.post('/v1/sessions/start', authenticateToken, async (req, res) => {
   }
 });
 
+// Helper function to get or initialize user subscription
+function getUserSubscription(userId) {
+  let subscription = db.prepare('SELECT * FROM user_subscriptions WHERE user_id = ?').get(userId);
+  
+  if (!subscription) {
+    // Initialize with free tier
+    const now = new Date();
+    const billingPeriodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const billingPeriodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+    
+    db.prepare(`
+      INSERT INTO user_subscriptions (user_id, subscription_tier, monthly_minutes_limit, billing_period_start, billing_period_end, updated_at)
+      VALUES (?, 'free', 60, ?, ?, ?)
+    `).run(userId, billingPeriodStart, billingPeriodEnd, now.toISOString());
+    
+    subscription = db.prepare('SELECT * FROM user_subscriptions WHERE user_id = ?').get(userId);
+  }
+  
+  return subscription;
+}
+
+// Helper function to get current month usage
+function getCurrentMonthUsage(userId) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1; // 1-12
+  
+  let usage = db.prepare('SELECT * FROM monthly_usage WHERE user_id = ? AND year = ? AND month = ?')
+    .get(userId, year, month);
+  
+  if (!usage) {
+    // Initialize usage for this month
+    const usageId = `usage-${crypto.randomUUID()}`;
+    db.prepare(`
+      INSERT INTO monthly_usage (id, user_id, year, month, used_minutes)
+      VALUES (?, ?, ?, ?, 0)
+    `).run(usageId, userId, year, month);
+    
+    usage = db.prepare('SELECT * FROM monthly_usage WHERE user_id = ? AND year = ? AND month = ?')
+      .get(userId, year, month);
+  }
+  
+  return usage;
+}
+
+// Helper function to get subscription tier limits
+function getTierLimits(tier) {
+  const limits = {
+    'free': 60,
+    'basic': 300,
+    'pro': 1000,
+    'enterprise': -1 // Unlimited
+  };
+  return limits[tier] || 60;
+}
+
 // 2. POST /v1/sessions/end - End session
 app.post('/v1/sessions/end', authenticateToken, (req, res) => {
   try {
-    const { session_id } = req.body;
+    const { session_id, duration_minutes } = req.body;
 
     if (!session_id) {
       return res.status(400).json({ error: 'Missing session_id' });
     }
 
-    const stmt = db.prepare('UPDATE sessions SET ended_at = ? WHERE id = ? AND user_id = ?');
-    const result = stmt.run(new Date().toISOString(), session_id, req.userId);
+    // Update session with end time and duration
+    const updateStmt = duration_minutes !== undefined
+      ? db.prepare('UPDATE sessions SET ended_at = ?, duration_minutes = ? WHERE id = ? AND user_id = ?')
+      : db.prepare('UPDATE sessions SET ended_at = ? WHERE id = ? AND user_id = ?');
+    
+    const result = duration_minutes !== undefined
+      ? updateStmt.run(new Date().toISOString(), duration_minutes, session_id, req.userId)
+      : updateStmt.run(new Date().toISOString(), session_id, req.userId);
 
     if (result.changes === 0) {
       return res.status(404).json({ error: 'Session not found' });
@@ -275,11 +399,133 @@ app.post('/v1/auth/refresh', authenticateToken, (req, res) => {
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
     res.json({
+      user_id: req.userId,
       token,
       expires_at: expiresAt
     });
   } catch (error) {
     console.error('Refresh token error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 11. GET /v1/usage/credits - Check remaining credits
+app.get('/v1/usage/credits', authenticateToken, (req, res) => {
+  try {
+    const subscription = getUserSubscription(req.userId);
+    const usage = getCurrentMonthUsage(req.userId);
+    const monthlyLimit = getTierLimits(subscription.subscription_tier);
+    
+    const usedMinutes = usage.used_minutes || 0;
+    const hasCredits = monthlyLimit === -1 || usedMinutes < monthlyLimit;
+    const remainingMinutes = monthlyLimit === -1 ? null : Math.max(0, monthlyLimit - usedMinutes);
+    
+    res.json({
+      has_credits: hasCredits,
+      remaining_minutes: remainingMinutes,
+      monthly_limit: monthlyLimit === -1 ? null : monthlyLimit,
+      used_minutes: usedMinutes,
+      subscription_tier: subscription.subscription_tier
+    });
+  } catch (error) {
+    console.error('Check credits error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 12. POST /v1/usage/report - Report usage for a session
+app.post('/v1/usage/report', authenticateToken, (req, res) => {
+  try {
+    const { session_id, minutes } = req.body;
+    
+    if (!session_id || minutes === undefined) {
+      return res.status(400).json({ error: 'Missing session_id or minutes' });
+    }
+    
+    // Verify session belongs to user
+    const session = db.prepare('SELECT id FROM sessions WHERE id = ? AND user_id = ?')
+      .get(session_id, req.userId);
+    
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    
+    // Get current month usage
+    const usage = getCurrentMonthUsage(req.userId);
+    
+    // Update usage
+    const updateStmt = db.prepare(`
+      UPDATE monthly_usage 
+      SET used_minutes = used_minutes + ? 
+      WHERE id = ?
+    `);
+    updateStmt.run(minutes, usage.id);
+    
+    res.status(204).send();
+  } catch (error) {
+    console.error('Report usage error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 13. GET /v1/usage/stats - Get usage statistics
+app.get('/v1/usage/stats', authenticateToken, (req, res) => {
+  try {
+    const subscription = getUserSubscription(req.userId);
+    const usage = getCurrentMonthUsage(req.userId);
+    const monthlyLimit = getTierLimits(subscription.subscription_tier);
+    
+    const usedMinutes = usage.used_minutes || 0;
+    const remainingMinutes = monthlyLimit === -1 ? null : Math.max(0, monthlyLimit - usedMinutes);
+    
+    res.json({
+      used_minutes: usedMinutes,
+      remaining_minutes: remainingMinutes,
+      monthly_limit: monthlyLimit === -1 ? null : monthlyLimit,
+      subscription_tier: subscription.subscription_tier,
+      billing_period_start: subscription.billing_period_start,
+      billing_period_end: subscription.billing_period_end
+    });
+  } catch (error) {
+    console.error('Get usage stats error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 14. GET /v1/voice-preview/:voiceId - Get pre-generated voice preview audio
+// Voice previews are pre-generated and stored as static files
+// Use the generate-voice-previews.js script to create them
+app.get('/v1/voice-preview/:voiceId', (req, res) => {
+  try {
+    const { voiceId } = req.params;
+    
+    // Determine file extension based on voice ID prefix
+    const extension = voiceId.startsWith('cartesia-') ? 'm4a' : 'mp3';
+    const filePath = path.join(previewsDir, `${voiceId}.${extension}`);
+    
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ 
+        error: 'Preview not found',
+        message: `Voice preview for ${voiceId} not found. Run generate-voice-previews.js script to generate previews.`
+      });
+    }
+    
+    // Determine content type
+    const contentType = extension === 'm4a' ? 'audio/mp4' : 'audio/mpeg';
+    const stats = fs.statSync(filePath);
+    
+    // Set headers and send file
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Length', stats.size);
+    res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+    res.setHeader('Accept-Ranges', 'bytes');
+    
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+    
+  } catch (error) {
+    console.error('Voice preview error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -290,9 +536,37 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
+// Validate LiveKit configuration before starting server
+const validateLiveKitConfig = () => {
+  const apiKey = process.env.LIVEKIT_API_KEY;
+  const apiSecret = process.env.LIVEKIT_API_SECRET;
+  const url = process.env.LIVEKIT_URL;
+  
+  console.log('\n🔍 LiveKit Configuration Check:');
+  console.log(`   API Key: ${apiKey ? `${apiKey.slice(0, 6)}...` : '❌ NOT SET'}`);
+  console.log(`   API Secret: ${apiSecret ? '✅ SET' : '❌ NOT SET'}`);
+  console.log(`   URL: ${url || '❌ NOT SET'}`);
+  
+  if (!apiKey || !apiSecret || !url) {
+    console.error('\n❌ ERROR: LiveKit credentials are not fully configured!');
+    console.error('   Please check your .env file in the backend directory.');
+    console.error('   Required variables: LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_URL');
+    return false;
+  }
+  
+  console.log('✅ LiveKit configuration is valid\n');
+  return true;
+};
+
 // Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-  console.log(`📊 Database: ${db.name}`);
-  console.log(`🎙️  LiveKit URL: ${process.env.LIVEKIT_URL || 'Not configured'}`);
-});
+if (validateLiveKitConfig()) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log(`📊 Database: ${db.name}`);
+    console.log(`🎙️  LiveKit URL: ${process.env.LIVEKIT_URL}`);
+  });
+} else {
+  console.error('\n❌ Server startup aborted due to missing LiveKit configuration.');
+  console.error('   Fix your .env file and restart the server.');
+  process.exit(1);
+}
