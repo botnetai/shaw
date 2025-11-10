@@ -12,62 +12,50 @@ struct SessionsListScreen: View {
     @ObservedObject var appCoordinator = AppCoordinator.shared
     
     var body: some View {
-        NavigationStack {
-            Group {
-                if isLoading {
-                    ProgressView("Loading sessions...")
-                } else if let error = errorMessage {
-                    VStack(spacing: 16) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.largeTitle)
-                            .foregroundColor(.orange)
-                        Text(error)
-                            .foregroundColor(.secondary)
-                        Button("Retry") {
-                            loadSessions()
-                        }
-                        .buttonStyle(.borderedProminent)
+        Group {
+            if isLoading {
+                ProgressView("Loading sessions...")
+            } else if let error = errorMessage {
+                VStack(spacing: 16) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.largeTitle)
+                        .foregroundColor(.orange)
+                    Text(error)
+                        .foregroundColor(.secondary)
+                    Button("Retry") {
+                        loadSessions()
                     }
-                    .padding()
-                } else if sessions.isEmpty {
-                    VStack(spacing: 16) {
-                        Image(systemName: "clock.badge.questionmark")
-                            .font(.largeTitle)
-                            .foregroundColor(.secondary)
-                        Text("No sessions yet")
-                            .font(.headline)
-                        Text("Start a call to create your first session")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding()
-                } else {
-                    List(sessions) { session in
-                        NavigationLink(value: session.id) {
-                            SessionRow(session: session) {}
-                        }
-                    }
+                    .buttonStyle(.borderedProminent)
                 }
-            }
-            .navigationTitle("Sessions")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: {
-                        appCoordinator.navigate(to: .home)
-                    }) {
-                        Image(systemName: "chevron.left")
-                        Text("Back")
+                .padding()
+            } else if sessions.isEmpty {
+                VStack(spacing: 16) {
+                    Image(systemName: "clock.badge.questionmark")
+                        .font(.largeTitle)
+                        .foregroundColor(.secondary)
+                    Text("No sessions yet")
+                        .font(.headline)
+                    Text("Start a call to create your first session")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .padding()
+            } else {
+                List(sessions) { session in
+                    NavigationLink(value: session.id) {
+                        SessionRow(session: session) {}
                     }
                 }
             }
         }
-            .navigationDestination(for: String.self) { sessionID in
-                SessionDetailScreen(sessionID: sessionID)
-            }
-            .onAppear {
-                loadSessions()
-            }
+        .navigationTitle("Sessions")
+        .navigationBarTitleDisplayMode(.large)
+        .navigationDestination(for: String.self) { sessionID in
+            SessionDetailScreen(sessionID: sessionID)
+        }
+        .onAppear {
+            loadSessions()
+        }
     }
     
     private func loadSessions() {

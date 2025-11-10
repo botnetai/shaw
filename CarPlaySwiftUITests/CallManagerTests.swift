@@ -18,7 +18,7 @@ final class CallManagerTests: XCTestCase {
         super.setUp()
         
         // Create mock components
-        let config = CXProviderConfiguration(localizedName: "Test")
+        let config = CXProviderConfiguration()
         mockProvider = MockCXProvider(configuration: config)
         mockCallController = MockCXCallController()
         
@@ -95,14 +95,15 @@ final class CallManagerTests: XCTestCase {
     func testCallFailure() {
         // Given
         mockCallController.shouldSucceed = false
+        mockCallController.onRequest = nil // Clear the default success handler
         let expectation = expectation(description: "Call failed")
         delegate.onFail = { _ in
             expectation.fulfill()
         }
-        
+
         // When
         callManager.startAssistantCall()
-        
+
         // Then
         wait(for: [expectation], timeout: 2.0)
         XCTAssertTrue(delegate.didFail)

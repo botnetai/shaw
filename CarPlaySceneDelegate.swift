@@ -19,7 +19,7 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     
     func templateApplicationScene(
         _ templateApplicationScene: CPTemplateApplicationScene,
-        didDisconnect interfaceController: CPInterfaceController
+        didDisconnectInterfaceController interfaceController: CPInterfaceController
     ) {
         self.interfaceController = nil
     }
@@ -31,7 +31,7 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
             image: nil
         )
         
-        talkToAssistantItem.handler = { [weak self] _, completion in
+        talkToAssistantItem.handler = { _, completion in
             // Start assistant call from CarPlay context
             AssistantCallCoordinator.shared.startAssistantCall(context: "carplay")
             completion()

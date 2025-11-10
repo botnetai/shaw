@@ -13,7 +13,7 @@ protocol LiveKitServiceDelegate: AnyObject {
     func liveKitServiceDidFail(error: Error)
 }
 
-class LiveKitService {
+final class LiveKitService: @unchecked Sendable {
     static let shared = LiveKitService()
 
     weak var delegate: LiveKitServiceDelegate?
@@ -54,41 +54,21 @@ class LiveKitService {
         Task { @MainActor [weak self] in
             guard let self = self, let room = self.room else { return }
 
-            do {
-                try await room.disconnect()
-                self.room = nil
-                self.isConnected = false
-                self.sessionId = nil
-                self.delegate?.liveKitServiceDidDisconnect()
-            } catch {
-                self.room = nil
-                self.isConnected = false
-                self.sessionId = nil
-                self.delegate?.liveKitServiceDidDisconnect()
-            }
+            await room.disconnect()
+            self.room = nil
+            self.isConnected = false
+            self.sessionId = nil
+            self.delegate?.liveKitServiceDidDisconnect()
         }
     }
 
     private func publishMicrophone(room: Room) async throws {
-        let options = AudioCaptureOptions()
-        let track = try LocalAudioTrack.createTrack(options: options)
-
-        let publishOptions = TrackPublishOptions()
-        publishOptions.source = .microphone
-
-        try await room.localParticipant.publishAudioTrack(track: track, options: publishOptions)
+        try await room.localParticipant.setMicrophone(enabled: true)
     }
 
     private func subscribeToAssistantAudio(room: Room) async {
-        for participant in room.remoteParticipants.values {
-            for (_, publication) in participant.trackPublications {
-                if publication.kind == .audio, !publication.isSubscribed {
-                    try? await publication.subscribe()
-                }
-            }
-        }
-
-        room.add(delegate: self)
+        // Audio subscription is automatic in LiveKit
+        // RoomDelegate will be notified when tracks are available
     }
 
     private func handleReconnection() {
@@ -100,17 +80,18 @@ class LiveKitService {
 }
 
 extension LiveKitService: RoomDelegate {
-    func room(_ room: Room, didConnect isReconnect: Bool) {
-        if isReconnect {
-            handleReconnection()
-        }
+    func roomDidConnect(_ room: Room) {
+        // Connection established
     }
 
-    func room(_ room: Room, didDisconnect error: Error?) {
+    @MainActor
+    func room(_ room: Room, didDisconnectWithError error: Error?) {
+        self.isConnected = false
+        self.room = nil
         if let error = error {
-            delegate?.liveKitServiceDidFail(error: error)
+            self.delegate?.liveKitServiceDidFail(error: error)
         } else {
-            delegate?.liveKitServiceDidDisconnect()
+            self.delegate?.liveKitServiceDidDisconnect()
         }
     }
 

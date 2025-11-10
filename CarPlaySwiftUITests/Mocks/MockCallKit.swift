@@ -49,7 +49,7 @@ class MockCXProvider: NSObject, CXProviderProtocol {
             // Configure audio session
             do {
                 let audioSession = AVAudioSession.sharedInstance()
-                try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth])
+                try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetoothHFP])
                 try audioSession.setActive(true)
             } catch {
                 // Ignore in tests
@@ -86,27 +86,21 @@ class MockCXCallController: CXCallControllerProtocol {
     var lastTransaction: CXTransaction?
     var onRequest: ((CXTransaction, @escaping (Error?) -> Void) -> Void)?
     
-    func request(_ transaction: CXTransaction, completion: @escaping (Error?) -> Void) {
+    func request(_ transaction: CXTransaction, completion: @escaping @Sendable (Error?) -> Void) {
         lastTransaction = transaction
-        
+
         if let onRequest = onRequest {
             onRequest(transaction, completion)
         } else {
             if shouldSucceed {
-                completion(nil)
-                
-                // Simulate provider delegate callbacks for start/end actions
-                if let startAction = transaction.actions.first as? CXStartCallAction {
-                    // Trigger delegate callback after a short delay
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        // This would normally be called by the system
-                        // In tests, we'll trigger it manually via the mock provider
-                    }
-                } else if let endAction = transaction.actions.first as? CXEndCallAction {
-                    // Similar for end action
+                DispatchQueue.main.async {
+                    completion(nil)
                 }
             } else {
-                completion(NSError(domain: "MockCallKit", code: -1, userInfo: [NSLocalizedDescriptionKey: "Mock error"]))
+                let error = NSError(domain: "MockCallKit", code: -1, userInfo: [NSLocalizedDescriptionKey: "Mock error"])
+                DispatchQueue.main.async {
+                    completion(error)
+                }
             }
         }
     }

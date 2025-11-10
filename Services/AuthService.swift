@@ -31,7 +31,7 @@ class AuthService {
     }
     
     var isAuthenticated: Bool {
-        guard let token = authToken else { return false }
+        guard authToken != nil else { return false }
         // Check if token is expired
         if let expiry = UserDefaults.standard.object(forKey: tokenExpiryKey) as? Date {
             return expiry > Date()

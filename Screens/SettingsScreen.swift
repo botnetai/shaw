@@ -10,71 +10,76 @@ struct SettingsScreen: View {
     @ObservedObject var appCoordinator = AppCoordinator.shared
     @State private var showDeleteAllConfirmation = false
     
+CarPlaySwiftUI
+/Users/jeremycai/Projects/carplay-swiftui-master/CarPlaySceneDelegate.swift
+/Users/jeremycai/Projects/carplay-swiftui-master/CarPlaySceneDelegate.swift:21:10 Objective-C method 'templateApplicationScene:didDisconnectInterfaceController:' provided by method 'templateApplicationScene(_:didDisconnect:)' conflicts with optional requirement method 'templateApplicationScene(_:didDisconnectInterfaceController:)' in protocol 'CPTemplateApplicationSceneDelegate'
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    Toggle("Enable Logging & Summaries", isOn: $settings.loggingEnabled)
-                    
-                    if settings.loggingEnabled {
-                        Text("Your assistant calls will be recorded and summarized for your benefit.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    } else {
-                        Text("Voice-only mode: No recording or history will be saved.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                } header: {
-                    Text("Privacy")
-                } footer: {
-                    Text("You can change this setting at any time. When disabled, calls will still work but no history will be saved.")
-                }
+        Form {
+            Section {
+                Toggle("Enable Logging & Summaries", isOn: $settings.loggingEnabled)
                 
-                Section {
-                    Stepper("\(settings.retentionDays) days", value: $settings.retentionDays, in: 7...365)
-                    Text("Sessions older than this will be automatically deleted.")
+                if settings.loggingEnabled {
+                    Text("Your assistant calls will be recorded and summarized for your benefit.")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                } header: {
-                    Text("Data Retention")
+                } else {
+                    Text("Voice-only mode: No recording or history will be saved.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            } header: {
+                Text("Privacy")
+            } footer: {
+                Text("You can change this setting at any time. When disabled, calls will still work but no history will be saved.")
+            }
+            
+            Section {
+                Picker("Data Retention", selection: $settings.retentionDays) {
+                    Text("Never").tag(0)
+                    Text("7 days").tag(7)
+                    Text("30 days").tag(30)
+                    Text("90 days").tag(90)
+                    Text("180 days").tag(180)
+                    Text("365 days").tag(365)
                 }
                 
-                Section {
-                    Button(role: .destructive, action: {
-                        showDeleteAllConfirmation = true
-                    }) {
-                        HStack {
-                            Image(systemName: "trash")
-                            Text("Delete All History")
-                        }
-                    }
-                } header: {
-                    Text("Data Management")
-                } footer: {
-                    Text("This will permanently delete all your session history and summaries.")
+                if settings.retentionDays == 0 {
+                    Text("Sessions will never be automatically deleted.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("Sessions older than \(settings.retentionDays) days will be automatically deleted.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
+            } header: {
+                Text("Data Retention")
             }
-            .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: {
-                        appCoordinator.navigate(to: .home)
-                    }) {
-                        Image(systemName: "chevron.left")
-                        Text("Back")
+            
+            Section {
+                Button(role: .destructive, action: {
+                    showDeleteAllConfirmation = true
+                }) {
+                    HStack {
+                        Image(systemName: "trash")
+                        Text("Delete All History")
                     }
                 }
+            } header: {
+                Text("Data Management")
+            } footer: {
+                Text("This will permanently delete all your session history and summaries.")
             }
-            .alert("Delete All History", isPresented: $showDeleteAllConfirmation) {
-                Button("Cancel", role: .cancel) {}
-                Button("Delete All", role: .destructive) {
-                    deleteAllSessions()
-                }
-            } message: {
-                Text("Are you sure you want to delete all your session history? This action cannot be undone.")
+        }
+        .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.large)
+        .alert("Delete All History", isPresented: $showDeleteAllConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete All", role: .destructive) {
+                deleteAllSessions()
             }
+        } message: {
+            Text("Are you sure you want to delete all your session history? This action cannot be undone.")
         }
     }
     

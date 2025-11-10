@@ -42,10 +42,30 @@ final class SessionLoggerTests: XCTestCase {
             XCTAssertEqual(request.httpMethod, "POST")
             XCTAssertEqual(request.url?.path, "/v1/sessions/start")
             XCTAssertNotNil(request.value(forHTTPHeaderField: "Content-Type"))
-            
-            // Assert request body
-            let body = try JSONSerialization.jsonObject(with: request.httpBody!) as! [String: Any]
-            XCTAssertEqual(body["context"] as? String, "phone")
+
+            // Assert request body (handle both httpBody and httpBodyStream)
+            var bodyData: Data?
+            if let httpBody = request.httpBody {
+                bodyData = httpBody
+            } else if let bodyStream = request.httpBodyStream {
+                bodyStream.open()
+                defer { bodyStream.close() }
+                let bufferSize = 4096
+                var buffer = [UInt8](repeating: 0, count: bufferSize)
+                var data = Data()
+                while bodyStream.hasBytesAvailable {
+                    let bytesRead = bodyStream.read(&buffer, maxLength: bufferSize)
+                    if bytesRead > 0 {
+                        data.append(buffer, count: bytesRead)
+                    }
+                }
+                bodyData = data
+            }
+
+            if let bodyData = bodyData {
+                let body = try JSONSerialization.jsonObject(with: bodyData) as! [String: Any]
+                XCTAssertEqual(body["context"] as? String, "phone")
+            }
             
             // Return mock response
             let response = HTTPURLResponse(

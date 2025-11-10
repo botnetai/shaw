@@ -83,14 +83,6 @@ struct SessionListItem: Identifiable, Codable {
     let summarySnippet: String
     let startedAt: Date
     let endedAt: Date?
-    
-    enum CodingKeys: String, CodingKey {
-        case id
-        case title
-        case summarySnippet = "summary_snippet"
-        case startedAt = "started_at"
-        case endedAt = "ended_at"
-    }
 }
 
 struct StartSessionResponse: Codable {
@@ -98,12 +90,5 @@ struct StartSessionResponse: Codable {
     let livekitUrl: String
     let livekitToken: String
     let roomName: String
-    
-    enum CodingKeys: String, CodingKey {
-        case sessionId = "session_id"
-        case livekitUrl = "livekit_url"
-        case livekitToken = "livekit_token"
-        case roomName = "room_name"
-    }
 }
 

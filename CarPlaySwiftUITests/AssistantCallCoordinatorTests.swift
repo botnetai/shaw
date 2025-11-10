@@ -4,6 +4,7 @@
 //
 
 import XCTest
+import CallKit
 @testable import CarPlaySwiftUI
 
 @MainActor
@@ -12,15 +13,15 @@ final class AssistantCallCoordinatorTests: XCTestCase {
     var mockCallManager: CallManager!
     var mockProvider: MockCXProvider!
     var mockCallController: MockCXCallController!
-    
+
     override func setUp() {
         super.setUp()
-        
+
         // Reset singleton
         CallManager.resetShared()
-        
+
         // Create mocks
-        let config = CXProviderConfiguration(localizedName: "Test")
+        let config = CXProviderConfiguration()
         mockProvider = MockCXProvider(configuration: config)
         mockCallController = MockCXCallController()
         mockCallManager = CallManager(provider: mockProvider, callController: mockCallController)

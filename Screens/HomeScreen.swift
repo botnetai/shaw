@@ -60,29 +60,6 @@ struct HomeScreen: View {
                 }
                 
                 Spacer()
-                
-                HStack(spacing: 32) {
-                    NavigationLink(destination: SessionsListScreen()) {
-                        VStack {
-                            Image(systemName: "clock.fill")
-                                .font(.title2)
-                            Text("Sessions")
-                                .font(.caption)
-                        }
-                    }
-                    .foregroundColor(.blue)
-                    
-                    NavigationLink(destination: SettingsScreen()) {
-                        VStack {
-                            Image(systemName: "gearshape.fill")
-                                .font(.title2)
-                            Text("Settings")
-                                .font(.caption)
-                        }
-                    }
-                    .foregroundColor(.blue)
-                }
-                .padding(.bottom, 32)
             }
             .padding()
             .alert("Error", isPresented: $showErrorAlert) {
@@ -94,7 +71,7 @@ struct HomeScreen: View {
                     Text(errorMessage)
                 }
             }
-            .onChange(of: callCoordinator.errorMessage) { newValue in
+            .onChange(of: callCoordinator.errorMessage) { oldValue, newValue in
                 showErrorAlert = newValue != nil
             }
         }

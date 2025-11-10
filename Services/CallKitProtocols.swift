@@ -15,7 +15,7 @@ protocol CXProviderProtocol {
 }
 
 protocol CXCallControllerProtocol {
-    func request(_ transaction: CXTransaction, completion: @escaping (Error?) -> Void)
+    func request(_ transaction: CXTransaction, completion: @escaping @Sendable (Error?) -> Void)
 }
 
 // MARK: - Wrappers for Production Use

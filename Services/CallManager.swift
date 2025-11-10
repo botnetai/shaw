@@ -41,7 +41,7 @@ class CallManager: NSObject {
             self.callController = callController
         } else {
             // Production initialization
-            let configuration = CXProviderConfiguration(localizedName: "AI Voice Copilot")
+            let configuration = CXProviderConfiguration()
             configuration.supportsVideo = false
             configuration.maximumCallsPerCallGroup = 1
             configuration.supportedHandleTypes = [.generic]
@@ -90,7 +90,7 @@ class CallManager: NSObject {
         let audioSession = AVAudioSession.sharedInstance()
         
         do {
-            try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth, .allowBluetoothA2DP, .allowAirPlay])
+            try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetoothHFP, .allowBluetoothA2DP, .allowAirPlay])
             try audioSession.setActive(true)
         } catch {
             print("Error configuring audio session: \(error)")
