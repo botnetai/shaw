@@ -77,14 +77,17 @@ final class LiveKitService: @unchecked Sendable {
 
     private func registerTranscriptionHandler(room: Room, sessionID: String) async {
         // Register handler for transcription text stream
-        await room.registerTextStreamHandler(for: "lk.transcription") { [weak self] stream in
+        // The handler receives a TextStreamReader and participant identity
+        await room.registerTextStreamHandler(for: "lk.transcription") { [weak self] stream, participantIdentity in
             guard let self = self else { return }
 
             Task {
                 do {
-                    // Read transcription segments from the stream
-                    for try await segment in stream {
-                        await self.handleTranscriptionSegment(segment, sessionID: sessionID)
+                    // Read text data from the stream
+                    for try await data in stream {
+                        if let text = String(data: data, encoding: .utf8), !text.isEmpty {
+                            await self.handleTranscriptionText(text, participantIdentity: participantIdentity, sessionID: sessionID)
+                        }
                     }
                 } catch {
                     print("❌ Error reading transcription stream: \(error)")
@@ -95,14 +98,8 @@ final class LiveKitService: @unchecked Sendable {
         print("✅ Registered transcription handler for session \(sessionID)")
     }
 
-    private func handleTranscriptionSegment(_ segment: TextStreamSegment, sessionID: String) async {
-        // Extract speaker and text from transcription segment
-        guard let participantIdentity = segment.participant?.identity,
-              let text = segment.text, !text.isEmpty else {
-            return
-        }
-
-        // Determine speaker (user or assistant)
+    private func handleTranscriptionText(_ text: String, participantIdentity: Participant.Identity, sessionID: String) async {
+        // Determine speaker (user or assistant) based on participant identity
         let speaker: Turn.Speaker = participantIdentity.contains("agent") ? .assistant : .user
 
         print("📝 Transcription [\(speaker.rawValue)]: \(text)")
