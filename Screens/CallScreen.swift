@@ -174,16 +174,14 @@ struct LoggingOptionsView: View {
 struct CallButtonView: View {
     @State private var callCoordinator = AssistantCallCoordinator.shared
     let selectedLoggingOption: CallScreen.LoggingOption
-    
+
     var body: some View {
         Button(action: {
-            Task { @MainActor in
-                if callCoordinator.callState == .idle {
-                    let enableLogging = selectedLoggingOption == .enabled
-                    await callCoordinator.startAssistantCall(context: "phone", enableLogging: enableLogging)
-                } else {
-                    callCoordinator.endAssistantCall()
-                }
+            if callCoordinator.callState == .idle {
+                let enableLogging = selectedLoggingOption == .enabled
+                callCoordinator.startAssistantCall(context: "phone", enableLogging: enableLogging)
+            } else {
+                callCoordinator.endAssistantCall()
             }
         }) {
             HStack(spacing: 12) {
