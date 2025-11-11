@@ -9,10 +9,7 @@ struct SettingsScreen: View {
     @ObservedObject var settings = UserSettings.shared
     @ObservedObject var appCoordinator = AppCoordinator.shared
     @State private var showDeleteAllConfirmation = false
-    
-CarPlaySwiftUI
-/Users/jeremycai/Projects/carplay-swiftui-master/CarPlaySceneDelegate.swift
-/Users/jeremycai/Projects/carplay-swiftui-master/CarPlaySceneDelegate.swift:21:10 Objective-C method 'templateApplicationScene:didDisconnectInterfaceController:' provided by method 'templateApplicationScene(_:didDisconnect:)' conflicts with optional requirement method 'templateApplicationScene(_:didDisconnectInterfaceController:)' in protocol 'CPTemplateApplicationSceneDelegate'
+
     var body: some View {
         Form {
             Section {
