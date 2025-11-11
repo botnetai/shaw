@@ -6,5 +6,3 @@ data/
 *.log
 .DS_Store
 .railway/
-# Voice previews are generated - uncomment if you want to commit them
-# public/voice-previews/
