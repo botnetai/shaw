@@ -201,34 +201,37 @@ class SessionLogger {
         guard let url = URL(string: "\(configuration.apiBaseURL)/sessions/\(sessionID)") else {
             throw SessionLoggerError.invalidURL
         }
-        
+
         let request = createAuthenticatedRequest(url: url, method: "GET")
-        
+
         let (data, response) = try await urlSession.data(for: request)
-        
+
         let decoder = createDecoder()
-        
+
         struct SessionDetailResponse: Codable {
             let session: SessionDTO
             let summary: SessionSummary?
             let turns: [Turn]
         }
-        
+
         do {
             let detailResponse: SessionDetailResponse = try handleResponse(
                 data: data,
                 response: response,
                 decoder: decoder
             )
-            
+
             return SessionDetailData(
                 session: detailResponse.session.toModel(),
                 summary: detailResponse.summary,
                 turns: detailResponse.turns
             )
+        } catch SessionLoggerError.serverError(let statusCode, let message) where statusCode == 404 {
+            print("📡 Session not found (404), likely database was cleared: \(message)")
+            throw SessionLoggerError.sessionNotFound
         } catch let decodingError as DecodingError {
             print("📡 Session detail decode failed for combined response, falling back to legacy endpoints: \(decodingError)")
-            
+
             let sessionData: Data
             if let jsonObject = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let sessionDict = jsonObject["session"] as? [String: Any],
@@ -237,12 +240,12 @@ class SessionLogger {
             } else {
                 sessionData = data
             }
-            
+
             let legacySession = try decoder.decode(SessionDTO.self, from: sessionData).toModel()
-            
+
             async let turns = fetchSessionTurns(sessionID: sessionID)
             async let summary = fetchSessionSummary(sessionID: sessionID)
-            
+
             return SessionDetailData(
                 session: legacySession,
                 summary: try await summary,
@@ -379,6 +382,7 @@ enum SessionLoggerError: LocalizedError {
     case invalidURL
     case invalidResponse
     case unauthorized
+    case sessionNotFound
     case serverError(statusCode: Int, message: String)
     
     var errorDescription: String? {
@@ -389,6 +393,8 @@ enum SessionLoggerError: LocalizedError {
             return "Invalid response from server"
         case .unauthorized:
             return "Authentication required. Please log in again."
+        case .sessionNotFound:
+            return "Session not found on server. The database may have been cleared."
         case .serverError(let statusCode, let message):
             return "Server error (\(statusCode)): \(message)"
         }

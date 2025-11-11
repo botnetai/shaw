@@ -24,15 +24,26 @@ struct SessionDetailScreen: View {
                         .padding()
                 } else if let error = errorMessage {
                     VStack(spacing: 16) {
-                        Image(systemName: "exclamationmark.triangle")
+                        Image(systemName: error.contains("not found") ? "xmark.circle" : "exclamationmark.triangle")
                             .font(.largeTitle)
-                            .foregroundColor(.orange)
+                            .foregroundColor(error.contains("not found") ? .red : .orange)
                         Text(error)
                             .foregroundColor(.secondary)
-                        Button("Retry") {
-                            loadSessionDetails()
+                            .multilineTextAlignment(.center)
+
+                        if error.contains("not found") {
+                            // Session doesn't exist - show go back button
+                            Button("Go Back") {
+                                appCoordinator.navigateBack()
+                            }
+                            .buttonStyle(.borderedProminent)
+                        } else {
+                            // Other error - show retry button
+                            Button("Retry") {
+                                loadSessionDetails()
+                            }
+                            .buttonStyle(.borderedProminent)
                         }
-                        .buttonStyle(.borderedProminent)
                     }
                     .padding()
                 } else {

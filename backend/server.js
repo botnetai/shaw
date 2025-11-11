@@ -23,7 +23,7 @@ import https from 'https';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
-import db from './database.js';
+import db, { usePostgres } from './database.js';
 import { generateRoomName, generateLiveKitToken, getLiveKitUrl, logLiveKitConfig, dispatchAgentToRoom } from './livekit.js';
 
 // Log LiveKit configuration after env is loaded and modules are imported
@@ -41,6 +41,11 @@ if (fs.existsSync(previewsDir)) {
   app.use('/voice-previews', express.static(previewsDir));
   console.log(`✅ Serving voice previews from: ${previewsDir}`);
 }
+
+// Helper to conditionally await database calls
+const maybeAwait = (promise) => {
+  return usePostgres ? promise : promise;
+};
 
 const normalizeBoolean = (value) => {
   if (typeof value === 'boolean') return value;
@@ -146,9 +151,9 @@ app.post('/v1/sessions/start', authenticateToken, async (req, res) => {
     // Store session in database
     const stmt = db.prepare(`
       INSERT INTO sessions (id, user_id, context, started_at, logging_enabled_snapshot, summary_status, model)
-      VALUES (?, ?, ?, ?, 1, 'pending', ?)
+      VALUES (?, ?, ?, ?, ${usePostgres ? 'true' : '1'}, 'pending', ?)
     `);
-    stmt.run(sessionId, req.userId, context, new Date().toISOString(), selectedModel);
+    await stmt.run(sessionId, req.userId, context, new Date().toISOString(), selectedModel);
 
     // Log configuration for debugging
     console.log(`Session ${sessionId} started in ${useRealtimeMode ? 'REALTIME' : 'TURN-BASED'} mode`);
