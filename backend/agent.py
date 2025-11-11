@@ -123,15 +123,51 @@ async def entrypoint(ctx: agents.JobContext):
     except Exception as e:
         logger.warning(f"Failed to parse metadata: {e}")
 
-    realtime_mode = metadata.get('realtime', True)  # Default to realtime for now
-    voice = metadata.get('voice', 'alloy')
+    realtime_mode = metadata.get('realtime', False)  # Backend sends true for full Realtime, false for hybrid
+    voice = metadata.get('voice', 'cartesia/sonic-3:9626c31c-bec5-4cca-baa8-f8ba9e84c8bc')
     model = metadata.get('model', 'openai/gpt-5-mini')
 
     try:
         if realtime_mode:
-            # OpenAI Realtime mode with Cartesia TTS (hybrid for cost savings)
-            logger.info(f"💰 Using OpenAI Realtime (text-only) + Cartesia Sonic TTS")
-            logger.info(f"📢 Cartesia voice: {voice}")
+            # Full OpenAI Realtime mode (audio I/O) - Pro only
+            logger.info(f"🎙️  Using OpenAI Realtime (Full Audio I/O)")
+            logger.info(f"📢 Realtime voice: {voice}")
+
+            # Full Realtime model with audio input and output
+            realtime_model = openai.realtime.RealtimeModel(
+                voice=voice,  # OpenAI voice: alloy, echo, fable, onyx, nova, shimmer
+                temperature=0.8,
+                modalities=["text", "audio"],  # Full audio I/O
+            )
+
+            agent_session = AgentSession(llm=realtime_model)
+
+            # Set up event handlers for transcription capture
+            @agent_session.on("user_speech_committed")
+            async def on_user_speech(msg: agents.llm.ChatMessage):
+                if session_id and msg.content:
+                    await save_turn(session_id, "user", msg.content)
+
+            @agent_session.on("agent_speech_committed")
+            async def on_agent_speech(msg: agents.llm.ChatMessage):
+                if session_id and msg.content:
+                    await save_turn(session_id, "assistant", msg.content)
+
+            await agent_session.start(
+                room=ctx.room,
+                agent=Assistant(),
+                room_input_options=RoomInputOptions(),
+            )
+
+            await agent_session.generate_reply(
+                instructions="Greet the driver briefly in English and ask how you can help them."
+            )
+
+            logger.info("✅ Full Realtime agent session started successfully")
+        else:
+            # Hybrid mode: OpenAI Realtime (text-only) + separate TTS (Cartesia/ElevenLabs)
+            logger.info(f"💰 Using HYBRID mode: OpenAI Realtime (text-only) + {voice}")
+            logger.info(f"📢 TTS voice: {voice}")
 
             # Realtime model in text-only mode for speech understanding
             realtime_model = openai.realtime.RealtimeModel(
@@ -139,10 +175,10 @@ async def entrypoint(ctx: agents.JobContext):
                 modalities=["text"],  # Text-only output (no audio generation)
             )
 
-            # AgentSession with separate Cartesia TTS
+            # AgentSession with separate TTS (Cartesia or ElevenLabs)
             agent_session = AgentSession(
                 llm=realtime_model,
-                tts=voice  # Cartesia voice (e.g., "cartesia/sonic-3:...")
+                tts=voice  # e.g., "cartesia/sonic-3:..." or "elevenlabs/..."
             )
 
             # Set up event handlers for transcription capture
@@ -166,43 +202,7 @@ async def entrypoint(ctx: agents.JobContext):
                 instructions="Greet the driver briefly in English and ask how you can help them."
             )
 
-            logger.info("✅ Realtime agent session started successfully")
-        else:
-            # Turn-based mode: STT → LLM → TTS pipeline
-            logger.info(f"🔄 Using turn-based mode with model: {model}, voice: {voice}")
-            # TODO: Implement turn-based mode with separate STT/LLM/TTS
-            # For now, fall back to realtime
-            logger.warning("⚠️  Turn-based mode not yet implemented, using realtime")
-            realtime_model = openai.realtime.RealtimeModel(
-                voice="alloy",
-                temperature=0.8,
-                modalities=["text", "audio"],
-            )
-
-            agent_session = AgentSession(llm=realtime_model)
-
-            # Set up event handlers for transcription capture (same as realtime mode)
-            @agent_session.on("user_speech_committed")
-            async def on_user_speech(msg: agents.llm.ChatMessage):
-                if session_id and msg.content:
-                    await save_turn(session_id, "user", msg.content)
-
-            @agent_session.on("agent_speech_committed")
-            async def on_agent_speech(msg: agents.llm.ChatMessage):
-                if session_id and msg.content:
-                    await save_turn(session_id, "assistant", msg.content)
-
-            await agent_session.start(
-                room=ctx.room,
-                agent=Assistant(),
-                room_input_options=RoomInputOptions(),
-            )
-
-            await agent_session.generate_reply(
-                instructions="Greet the driver briefly in English and ask how you can help them."
-            )
-
-            logger.info("✅ Agent session started (realtime fallback)")
+            logger.info("✅ Hybrid agent session started successfully")
 
     except Exception as e:
         logger.error(f"❌ Agent error: {e}")

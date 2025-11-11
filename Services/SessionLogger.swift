@@ -116,17 +116,13 @@ class SessionLogger {
 
         let settings = UserSettings.shared
 
-        // Extract voice ID (remove provider prefix for backend)
+        // Send voice ID directly (already in backend-compatible format from VoiceModels)
         let voiceId = settings.selectedVoice.id
-            .replacingOccurrences(of: "cartesia-", with: "")
-            .replacingOccurrences(of: "elevenlabs-", with: "")
-            .replacingOccurrences(of: "openai-", with: "")
 
         let body: [String: Any] = [
             "context": context.rawValue,
             "model": settings.selectedModel.rawValue,
-            "voice": voiceId,
-            "realtime": settings.useRealtimeMode
+            "voice": voiceId
         ]
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)

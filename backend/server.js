@@ -312,7 +312,7 @@ app.get('/health/agent', (req, res) => {
 // 1. POST /v1/sessions/start - Start new session
 app.post('/v1/sessions/start', authenticateToken, async (req, res) => {
   try {
-    const { context, model, voice, realtime } = req.body;
+    const { context, model, voice } = req.body;
 
     if (!context || !['phone', 'carplay'].includes(context)) {
       return res.status(400).json({ error: 'Invalid context' });
@@ -332,9 +332,14 @@ app.post('/v1/sessions/start', authenticateToken, async (req, res) => {
       });
     }
 
-    const useRealtimeMode = realtime === true;
+    // Determine mode from voice ID
+    // OpenAI Realtime voices are simple names without slashes: alloy, echo, fable, onyx, nova, shimmer
+    // Hybrid mode voices have provider prefix: cartesia/sonic-3:..., elevenlabs/...
+    const openAIRealtimeVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+    const selectedVoice = voice && typeof voice === 'string' ? voice : 'cartesia/sonic-3:9626c31c-bec5-4cca-baa8-f8ba9e84c8bc';
+    const useRealtimeMode = openAIRealtimeVoices.includes(selectedVoice);
 
-    // Validate model if provided (optional) - only for turn-based mode
+    // Validate model if provided (optional) - only for hybrid mode (non-realtime)
     // Models use LiveKit Inference provider/model format
     // See: https://docs.livekit.io/agents/models/#inference
     const validModels = [
@@ -348,18 +353,6 @@ app.post('/v1/sessions/start', authenticateToken, async (req, res) => {
     ];
 
     const selectedModel = !useRealtimeMode && model && validModels.includes(model) ? model : null;
-
-    // Handle voice selection based on mode
-    let selectedVoice;
-    if (useRealtimeMode) {
-      // OpenAI Realtime voices: alloy, echo, fable, onyx, nova, shimmer
-      const realtimeVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
-      selectedVoice = voice && realtimeVoices.includes(voice) ? voice : 'alloy';
-    } else {
-      // Turn-based mode: Cartesia or ElevenLabs
-      const defaultTTS = 'cartesia/sonic-3:9626c31c-bec5-4cca-baa8-f8ba9e84c8bc';
-      selectedVoice = voice && typeof voice === 'string' ? voice : defaultTTS;
-    }
 
     const sessionId = `session-${crypto.randomUUID()}`;
     const roomName = generateRoomName();
@@ -385,11 +378,11 @@ app.post('/v1/sessions/start', authenticateToken, async (req, res) => {
     );
 
     // Log configuration for debugging
-    console.log(`Session ${sessionId} started in ${useRealtimeMode ? 'REALTIME' : 'TURN-BASED'} mode`);
+    console.log(`Session ${sessionId} started in ${useRealtimeMode ? 'OPENAI REALTIME (Full Audio I/O)' : 'HYBRID (Realtime text-only + TTS)'} mode`);
     if (useRealtimeMode) {
       console.log(`  OpenAI Realtime voice: ${selectedVoice}`);
     } else {
-      console.log(`  Model: ${selectedModel || 'default'}`);
+      console.log(`  Model: ${selectedModel || 'openai/gpt-5-mini'}`);
       console.log(`  TTS voice: ${selectedVoice}`);
     }
 
@@ -403,8 +396,8 @@ app.post('/v1/sessions/start', authenticateToken, async (req, res) => {
       livekit_url: livekitUrl,
       livekit_token: livekitToken,
       room_name: roomName,
-      realtime: useRealtimeMode,
-      model: selectedModel || (useRealtimeMode ? 'openai-realtime' : 'default'),
+      mode: useRealtimeMode ? 'realtime' : 'hybrid',
+      model: selectedModel || (useRealtimeMode ? 'openai-realtime' : 'openai/gpt-5-mini'),
       voice: selectedVoice
     });
   } catch (error) {

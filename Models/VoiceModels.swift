@@ -24,30 +24,29 @@ struct TTSVoice: Identifiable, Codable, Equatable {
     let name: String
     let description: String
     let provider: TTSProvider
-    
+    let requiresPro: Bool
+
     static let cartesiaVoices: [TTSVoice] = [
-        TTSVoice(id: "cartesia-katie", name: "Katie", description: "Friendly female voice", provider: .cartesia),
-        TTSVoice(id: "cartesia-kiefer", name: "Kiefer", description: "Professional male voice", provider: .cartesia),
-        TTSVoice(id: "cartesia-kyle", name: "Kyle", description: "Casual male voice", provider: .cartesia),
-        TTSVoice(id: "cartesia-tessa", name: "Tessa", description: "Warm female voice", provider: .cartesia)
+        TTSVoice(id: "cartesia/sonic-3:9626c31c-bec5-4cca-baa8-f8ba9e84c8bc", name: "Jacqueline", description: "Confident, young American adult female", provider: .cartesia, requiresPro: false),
+        TTSVoice(id: "cartesia/sonic-3:a167e0f3-df7e-4d52-a9c3-f949145efdab", name: "Blake", description: "Energetic American adult male", provider: .cartesia, requiresPro: false),
+        TTSVoice(id: "cartesia/sonic-3:f31cc6a7-c1e8-4764-980c-60a361443dd1", name: "Robyn", description: "Neutral, mature Australian female", provider: .cartesia, requiresPro: false),
+        TTSVoice(id: "cartesia/sonic-3:5c5ad5e7-1020-476b-8b91-fdcbe9cc313c", name: "Daniela", description: "Calm and trusting Mexican female", provider: .cartesia, requiresPro: false)
     ]
-    
+
     static let elevenlabsVoices: [TTSVoice] = [
-        TTSVoice(id: "elevenlabs-rachel", name: "Rachel", description: "Clear female voice", provider: .elevenlabs),
-        TTSVoice(id: "elevenlabs-clyde", name: "Clyde", description: "Deep male voice", provider: .elevenlabs),
-        TTSVoice(id: "elevenlabs-roger", name: "Roger", description: "Mature male voice", provider: .elevenlabs),
-        TTSVoice(id: "elevenlabs-sarah", name: "Sarah", description: "Young female voice", provider: .elevenlabs),
-        TTSVoice(id: "elevenlabs-laura", name: "Laura", description: "Professional female voice", provider: .elevenlabs),
-        TTSVoice(id: "elevenlabs-charlie", name: "Charlie", description: "Energetic male voice", provider: .elevenlabs)
+        TTSVoice(id: "elevenlabs/eleven_turbo_v2_5:cgSgspJ2msm6clMCkdW9", name: "Jessica", description: "Young and popular, playful American female", provider: .elevenlabs, requiresPro: false),
+        TTSVoice(id: "elevenlabs/eleven_turbo_v2_5:iP95p4xoKVk53GoZ742B", name: "Chris", description: "Natural and real American male", provider: .elevenlabs, requiresPro: false),
+        TTSVoice(id: "elevenlabs/eleven_turbo_v2_5:Xb7hH8MSUJpSbSDYk0k2", name: "Alice", description: "Clear and engaging, friendly British woman", provider: .elevenlabs, requiresPro: false),
+        TTSVoice(id: "elevenlabs/eleven_turbo_v2_5:cjVigY5qzO86Huf0OWal", name: "Eric", description: "A smooth tenor Mexican male", provider: .elevenlabs, requiresPro: false)
     ]
 
     static let openaiRealtimeVoices: [TTSVoice] = [
-        TTSVoice(id: "openai-alloy", name: "Alloy", description: "Neutral, balanced voice", provider: .openaiRealtime),
-        TTSVoice(id: "openai-echo", name: "Echo", description: "Warm, friendly voice", provider: .openaiRealtime),
-        TTSVoice(id: "openai-fable", name: "Fable", description: "Expressive, storytelling voice", provider: .openaiRealtime),
-        TTSVoice(id: "openai-onyx", name: "Onyx", description: "Deep, authoritative voice", provider: .openaiRealtime),
-        TTSVoice(id: "openai-nova", name: "Nova", description: "Clear, energetic voice", provider: .openaiRealtime),
-        TTSVoice(id: "openai-shimmer", name: "Shimmer", description: "Soft, soothing voice", provider: .openaiRealtime)
+        TTSVoice(id: "alloy", name: "Alloy", description: "Neutral, balanced voice", provider: .openaiRealtime, requiresPro: true),
+        TTSVoice(id: "echo", name: "Echo", description: "Warm, friendly voice", provider: .openaiRealtime, requiresPro: true),
+        TTSVoice(id: "fable", name: "Fable", description: "Expressive, storytelling voice", provider: .openaiRealtime, requiresPro: true),
+        TTSVoice(id: "onyx", name: "Onyx", description: "Deep, authoritative voice", provider: .openaiRealtime, requiresPro: true),
+        TTSVoice(id: "nova", name: "Nova", description: "Clear, energetic voice", provider: .openaiRealtime, requiresPro: true),
+        TTSVoice(id: "shimmer", name: "Shimmer", description: "Soft, soothing voice", provider: .openaiRealtime, requiresPro: true)
     ]
 
     static func voices(for provider: TTSProvider) -> [TTSVoice] {
@@ -59,6 +58,10 @@ struct TTSVoice: Identifiable, Codable, Equatable {
     }
     
     static let `default` = cartesiaVoices[0]
+
+    var isRealtimeMode: Bool {
+        return provider == .openaiRealtime
+    }
 }
 
 enum AIModelProvider: String, Codable, CaseIterable {

@@ -23,48 +23,6 @@ struct CallScreen: View {
                 if callCoordinator.callState == .idle {
                     Form {
                         Section {
-                            Toggle(isOn: $settings.useRealtimeMode) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Realtime Mode")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                    Text(settings.useRealtimeMode ? "OpenAI Realtime (low latency)" : "Turn-based (STT → LLM → TTS)")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                            .onChange(of: settings.useRealtimeMode) { oldValue, newValue in
-                                // When switching to turn-based mode with an OpenAI Realtime voice selected,
-                                // auto-switch to default Cartesia voice
-                                if !newValue && settings.selectedVoice.provider == .openaiRealtime {
-                                    settings.selectedVoice = TTSVoice.default
-                                }
-                                // When switching to realtime mode with non-realtime voice selected,
-                                // auto-switch to default OpenAI Realtime voice
-                                else if newValue && settings.selectedVoice.provider != .openaiRealtime {
-                                    settings.selectedVoice = TTSVoice.openaiRealtimeVoices[0]
-                                }
-                            }
-                        } header: {
-                            Text("Mode")
-                        }
-
-                        Section {
-                            if !settings.useRealtimeMode {
-                                NavigationLink(destination: ModelPickerView(settings: settings)) {
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text("AI Model")
-                                                .font(.subheadline)
-                                                .foregroundColor(.secondary)
-                                            Text(settings.selectedModel.displayName)
-                                                .font(.body)
-                                        }
-                                        Spacer()
-                                    }
-                                }
-                            }
-
                             NavigationLink(destination: VoicePickerView(settings: settings)) {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 2) {
@@ -78,7 +36,34 @@ struct CallScreen: View {
                                 }
                             }
                         } header: {
-                            Text(settings.useRealtimeMode ? "Voice (OpenAI Realtime)" : "Model & Voice")
+                            Text("Voice")
+                        } footer: {
+                            if settings.selectedVoice.isRealtimeMode {
+                                Text("OpenAI Realtime mode: Low latency, full-duplex voice conversation with native audio I/O")
+                            } else {
+                                Text("Hybrid mode: OpenAI Realtime (text-only) + \(settings.selectedVoice.provider.displayName) TTS for cost savings")
+                            }
+                        }
+
+                        if !settings.selectedVoice.isRealtimeMode {
+                            Section {
+                                NavigationLink(destination: ModelPickerView(settings: settings)) {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("AI Model")
+                                                .font(.subheadline)
+                                                .foregroundColor(.secondary)
+                                            Text(settings.selectedModel.displayName)
+                                                .font(.body)
+                                        }
+                                        Spacer()
+                                    }
+                                }
+                            } header: {
+                                Text("AI Model")
+                            } footer: {
+                                Text("Select the language model for voice understanding and conversation")
+                            }
                         }
 
                         Section {
@@ -375,23 +360,56 @@ struct ModelPickerView: View {
 
 struct VoicePickerView: View {
     @ObservedObject var settings: UserSettings
+    @StateObject private var subscriptionManager = SubscriptionManager.shared
 
     var body: some View {
         List {
-            ForEach(availableProviders, id: \.self) { provider in
+            ForEach(TTSProvider.allCases, id: \.self) { provider in
                 let voices = TTSVoice.voices(for: provider)
-                Section(provider.displayName) {
+                Section {
                     ForEach(voices) { voice in
                         Button {
-                            settings.selectedVoice = voice
-                            // Auto-enable realtime mode when selecting OpenAI Realtime voice
-                            if voice.provider == .openaiRealtime {
-                                settings.useRealtimeMode = true
+                            if voice.requiresPro && !subscriptionManager.state.isActive {
+                                // Don't allow selection of Pro voices for non-Pro users
+                                return
                             }
+                            settings.selectedVoice = voice
                         } label: {
-                            VoicePickerRow(voice: voice, isSelected: settings.selectedVoice.id == voice.id)
+                            VoicePickerRow(
+                                voice: voice,
+                                isSelected: settings.selectedVoice.id == voice.id,
+                                isPro: subscriptionManager.state.isActive
+                            )
                         }
                         .buttonStyle(.plain)
+                        .disabled(voice.requiresPro && !subscriptionManager.state.isActive)
+                        .opacity(voice.requiresPro && !subscriptionManager.state.isActive ? 0.5 : 1.0)
+                    }
+                } header: {
+                    HStack {
+                        Text(provider.displayName)
+                        if voices.first?.requiresPro == true {
+                            Text("PRO")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(subscriptionManager.state.isActive ? Color.blue : Color.gray)
+                                .cornerRadius(4)
+                        }
+                    }
+                } footer: {
+                    if provider == .cartesia {
+                        Text("Cartesia Sonic 3: Cost-effective, high-quality voices")
+                    } else if provider == .elevenlabs {
+                        Text("ElevenLabs: Premium quality, natural-sounding voices")
+                    } else if provider == .openaiRealtime {
+                        if subscriptionManager.state.isActive {
+                            Text("OpenAI Realtime: Full-duplex audio mode with native audio I/O")
+                        } else {
+                            Text("OpenAI Realtime voices require a Pro subscription")
+                        }
                     }
                 }
             }
@@ -399,21 +417,12 @@ struct VoicePickerView: View {
         .navigationTitle("Voice")
         .navigationBarTitleDisplayMode(.large)
     }
-
-    private var availableProviders: [TTSProvider] {
-        if settings.useRealtimeMode {
-            // Only show OpenAI Realtime voices in realtime mode
-            return [.openaiRealtime]
-        } else {
-            // Show Cartesia and ElevenLabs in turn-based mode
-            return [.cartesia, .elevenlabs]
-        }
-    }
 }
 
 struct VoicePickerRow: View {
     let voice: TTSVoice
     let isSelected: Bool
+    let isPro: Bool
     @StateObject private var previewService = VoicePreviewService.shared
     @State private var isLoadingPreview = false
     @State private var previewError: String?
@@ -425,9 +434,22 @@ struct VoicePickerRow: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text(voice.name)
-                    .font(.headline)
-                    .foregroundColor(.primary)
+                HStack(spacing: 6) {
+                    Text(voice.name)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+
+                    if voice.requiresPro && !isPro {
+                        Text("PRO")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Color.gray)
+                            .cornerRadius(3)
+                    }
+                }
                 Text(voice.description)
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -449,6 +471,7 @@ struct VoicePickerRow: View {
                         .font(.title3)
                 }
                 .buttonStyle(.plain)
+                .disabled(voice.requiresPro && !isPro)
             }
 
             if isSelected {
