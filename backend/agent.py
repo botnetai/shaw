@@ -1,6 +1,7 @@
 import os
 import logging
 import sys
+import asyncio
 import aiohttp
 from dotenv import load_dotenv
 from livekit import agents
@@ -122,8 +123,13 @@ class Assistant(Agent):
             return "Search is temporarily unavailable."
 
 async def save_turn(session_id: str, speaker: str, text: str):
-    """Save a conversation turn to the backend"""
+    """Save a conversation turn to the backend database
+    
+    This function is called by the agent when user speech or agent speech is committed.
+    The turns are stored in the database and later used to generate summaries.
+    """
     if not session_id or not text.strip():
+        logger.warning(f"⚠️  Skipping turn save - missing session_id or empty text")
         return
 
     try:
@@ -135,15 +141,20 @@ async def save_turn(session_id: str, speaker: str, text: str):
                     "speaker": speaker,
                     "text": text.strip()
                 },
-                headers={"Content-Type": "application/json"}
+                headers={"Content-Type": "application/json"},
+                timeout=aiohttp.ClientTimeout(total=5)
             ) as response:
                 if response.status == 201:
-                    logger.info(f"✅ Saved {speaker} turn for session {session_id[:20]}...")
+                    logger.debug(f"✅ Saved {speaker} turn for session {session_id[:20]}...")
                 else:
                     error_text = await response.text()
                     logger.error(f"❌ Failed to save turn: {response.status} - {error_text}")
+                    logger.error(f"   Session ID: {session_id[:20]}..., Speaker: {speaker}")
+    except asyncio.TimeoutError:
+        logger.error(f"❌ Timeout saving turn for session {session_id[:20]}...")
     except Exception as e:
         logger.error(f"❌ Error saving turn: {e}")
+        logger.error(f"   Session ID: {session_id[:20]}..., Speaker: {speaker}")
 
 async def entrypoint(ctx: agents.JobContext):
     """Entry point for the LiveKit agent - supports both Realtime and Turn-based modes"""

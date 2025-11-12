@@ -118,12 +118,14 @@ async function generateSummaryAndTitle(sessionId) {
     const turns = await stmt.all(sessionId);
 
     if (!turns || turns.length === 0) {
-      console.log(`⚠️  No turns found for session ${sessionId}`);
-      // Update status to 'skipped' to prevent retries
+      console.log(`⚠️  No turns found for session ${sessionId} - cannot generate summary`);
+      // Update status to 'failed' to prevent retries (matches SummaryStatus enum in Swift)
       const updateStmt = db.prepare('UPDATE sessions SET summary_status = ? WHERE id = ?');
-      await updateStmt.run('skipped', sessionId);
+      await updateStmt.run('failed', sessionId);
       return;
     }
+
+    console.log(`📊 Found ${turns.length} turns for session ${sessionId}`);
 
     // Format transcript
     const transcript = turns.map(t => `${t.speaker}: ${t.text}`).join('\n');
@@ -218,7 +220,7 @@ async function generateSummaryAndTitle(sessionId) {
       console.warn('Failed to parse tags:', e);
     }
 
-    // Save summary to database
+    // Save summary to database (linked to session via foreign key)
     const summaryId = crypto.randomUUID();
     const insertStmt = db.prepare(`
       INSERT INTO summaries (id, session_id, title, summary_text, action_items, tags, created_at)
@@ -234,11 +236,16 @@ async function generateSummaryAndTitle(sessionId) {
       JSON.stringify(tags)
     );
 
-    // Update session status
+    // Update session status to 'ready' - summary is now available
     const updateStmt = db.prepare('UPDATE sessions SET summary_status = ? WHERE id = ?');
     await updateStmt.run('ready', sessionId);
 
-    console.log(`✅ Summary generated for session ${sessionId}: "${title}"`);
+    console.log(`✅ Summary generated and saved for session ${sessionId}:`);
+    console.log(`   Title: "${title}"`);
+    console.log(`   Summary ID: ${summaryId}`);
+    console.log(`   Action items: ${actionItems.length}`);
+    console.log(`   Tags: ${tags.length}`);
+    console.log(`   Session summary_status updated to 'ready'`);
   } catch (error) {
     console.error(`❌ Failed to generate summary for session ${sessionId}:`, error);
 
@@ -262,11 +269,15 @@ async function processPendingSummaries() {
     `);
     const sessions = await stmt.all();
 
+    if (sessions.length > 0) {
+      console.log(`🔄 Processing ${sessions.length} pending summary(ies)...`);
+    }
+
     for (const session of sessions) {
       await generateSummaryAndTitle(session.id);
     }
   } catch (error) {
-    console.error('Error processing pending summaries:', error);
+    console.error('❌ Error processing pending summaries:', error);
   }
 }
 
@@ -602,18 +613,20 @@ app.get('/v1/sessions/:id', authenticateToken, (req, res) => {
     
     const session = normalizeSession(sessionRow);
 
-    // Fetch summary if it exists
+    // Fetch summary if it exists (linked via session_id foreign key)
     const summaryStmt = db.prepare('SELECT * FROM summaries WHERE session_id = ?');
     const summaryRow = summaryStmt.get(sessionId);
     const summary = normalizeSummary(summaryRow);
 
-    // Always return turns, even if empty
+    // Always return turns, even if empty (linked via session_id foreign key)
     const turns = db.prepare(`
       SELECT * FROM turns WHERE session_id = ? ORDER BY timestamp ASC
     `).all(sessionId);
 
     console.log(`📊 Returning session ${sessionId}:`, {
       sessionFields: Object.keys(session),
+      summaryStatus: session.summary_status,
+      summaryExists: !!summary,
       summaryFields: summary ? Object.keys(summary) : null,
       turnsCount: turns.length,
       firstTurnFields: turns[0] ? Object.keys(turns[0]) : null
