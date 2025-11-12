@@ -208,15 +208,16 @@ async def entrypoint(ctx: agents.JobContext):
             agent_session = AgentSession(llm=realtime_model)
 
             # Set up event handlers for transcription capture
+            # Note: Event handlers must be synchronous - use asyncio.create_task for async work
             @agent_session.on("user_speech_committed")
-            async def on_user_speech(msg: agents.llm.ChatMessage):
+            def on_user_speech(msg: agents.llm.ChatMessage):
                 if session_id and msg.content:
-                    await save_turn(session_id, "user", msg.content)
+                    asyncio.create_task(save_turn(session_id, "user", msg.content))
 
             @agent_session.on("agent_speech_committed")
-            async def on_agent_speech(msg: agents.llm.ChatMessage):
+            def on_agent_speech(msg: agents.llm.ChatMessage):
                 if session_id and msg.content:
-                    await save_turn(session_id, "assistant", msg.content)
+                    asyncio.create_task(save_turn(session_id, "assistant", msg.content))
 
             # Configure room input options
             # RoomIO (created automatically by AgentSession) handles track subscription
@@ -263,15 +264,16 @@ async def entrypoint(ctx: agents.JobContext):
             )
 
             # Set up event handlers for transcription capture
+            # Note: Event handlers must be synchronous - use asyncio.create_task for async work
             @agent_session.on("user_speech_committed")
-            async def on_user_speech(msg: agents.llm.ChatMessage):
+            def on_user_speech(msg: agents.llm.ChatMessage):
                 if session_id and msg.content:
-                    await save_turn(session_id, "user", msg.content)
+                    asyncio.create_task(save_turn(session_id, "user", msg.content))
 
             @agent_session.on("agent_speech_committed")
-            async def on_agent_speech(msg: agents.llm.ChatMessage):
+            def on_agent_speech(msg: agents.llm.ChatMessage):
                 if session_id and msg.content:
-                    await save_turn(session_id, "assistant", msg.content)
+                    asyncio.create_task(save_turn(session_id, "assistant", msg.content))
 
             # Configure room input options
             # RoomIO (created automatically by AgentSession) handles track subscription
