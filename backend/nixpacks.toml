@@ -1,12 +1,15 @@
 [phases.setup]
-nixPkgs = ['nodejs_20', 'python311', 'python311Packages.pip', 'python311Packages.virtualenv']
+nixPkgs = ['nodejs_20', 'python311', 'python311Packages.pip', 'python311Packages.virtualenv', 'stdenv.cc.cc.lib', 'gcc']
 
 [phases.install]
 cmds = [
   'npm ci',
   'python3 -m venv /opt/venv',
   '/opt/venv/bin/pip install --upgrade pip',
-  '/opt/venv/bin/pip install -r requirements.txt'
+  '/opt/venv/bin/pip install -r requirements.txt',
+  'echo "🔍 Verifying library installation..."',
+  'find /nix/store -name "libstdc++.so.6" 2>/dev/null | head -3 || echo "⚠️  libstdc++.so.6 not found in /nix/store"',
+  'ls -la /root/.nix-profile/lib/libstdc++* 2>/dev/null || echo "⚠️  libstdc++ not found in /root/.nix-profile/lib"'
 ]
 
 [start]
