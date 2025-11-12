@@ -64,5 +64,5 @@ except Exception as e:
 
 # Start the agent worker
 echo "🚀 Starting LiveKit agent worker..."
-exec /opt/venv/bin/python agent.py
+exec /opt/venv/bin/python agent.py start
 

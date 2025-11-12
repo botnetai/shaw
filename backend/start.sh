@@ -63,7 +63,7 @@ echo "🚀 Starting web server and agent worker..."
 
 # Start agent worker in background using virtual environment
 echo "🚀 Starting agent worker..."
-/opt/venv/bin/python agent.py > /tmp/agent.log 2>&1 &
+/opt/venv/bin/python agent.py start > /tmp/agent.log 2>&1 &
 AGENT_PID=$!
 echo "✅ Agent worker process started (PID: $AGENT_PID)"
 
