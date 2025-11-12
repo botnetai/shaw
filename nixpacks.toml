@@ -16,5 +16,5 @@ cmds = [
 ]
 
 [start]
-cmd = 'bash backend/start.sh'
+cmd = 'bash start.sh'
 
