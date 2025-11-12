@@ -27,9 +27,14 @@ class CloudKitSyncService: ObservableObject {
         self.container = CKContainer.default()
         self.privateDatabase = container.privateCloudDatabase
 
-        // Subscribe to remote changes
+        // Subscribe to remote changes only if iCloud is available
         Task {
-            await subscribeToChanges()
+            // Check iCloud availability before subscribing
+            if await isICloudAvailable() {
+                await subscribeToChanges()
+            } else {
+                print("⚠️  iCloud not available, skipping CloudKit subscription")
+            }
         }
     }
 
@@ -129,6 +134,12 @@ class CloudKitSyncService: ObservableObject {
     // MARK: - Subscriptions for Real-time Sync
 
     private func subscribeToChanges() async {
+        // Double-check iCloud availability before subscribing
+        guard await isICloudAvailable() else {
+            print("⚠️  Cannot subscribe to CloudKit changes: iCloud not available")
+            return
+        }
+        
         let subscriptionID = "session-changes"
         let subscription = CKQuerySubscription(
             recordType: "Session",
@@ -143,8 +154,23 @@ class CloudKitSyncService: ObservableObject {
 
         do {
             try await privateDatabase.save(subscription)
+            print("✅ Successfully subscribed to CloudKit changes")
         } catch {
-            print("Failed to subscribe to changes: \(error)")
+            // Handle specific CloudKit errors
+            if let ckError = error as? CKError {
+                switch ckError.code {
+                case .notAuthenticated:
+                    print("⚠️  CloudKit not authenticated: User needs to sign in to iCloud in Settings")
+                case .accountTemporarilyUnavailable:
+                    print("⚠️  CloudKit account temporarily unavailable")
+                case .networkUnavailable:
+                    print("⚠️  CloudKit network unavailable")
+                default:
+                    print("⚠️  Failed to subscribe to CloudKit changes: \(ckError.localizedDescription)")
+                }
+            } else {
+                print("⚠️  Failed to subscribe to CloudKit changes: \(error.localizedDescription)")
+            }
         }
     }
 
