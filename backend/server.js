@@ -148,8 +148,7 @@ async function generateSummaryAndTitle(sessionId) {
           content: `Summarize this conversation:\n\n${transcript}`
         }
       ],
-      temperature: 0.3,
-      max_tokens: 500
+      max_completion_tokens: 500
     });
 
     const summaryText = summaryResponse.choices[0].message.content;
@@ -167,8 +166,7 @@ async function generateSummaryAndTitle(sessionId) {
           content: summaryText
         }
       ],
-      temperature: 0.2,
-      max_tokens: 200,
+      max_completion_tokens: 200,
       response_format: { type: 'json_object' }
     });
 
@@ -193,8 +191,7 @@ async function generateSummaryAndTitle(sessionId) {
           content: summaryText
         }
       ],
-      temperature: 0.5,
-      max_tokens: 20
+      max_completion_tokens: 20
     });
 
     const title = titleResponse.choices[0].message.content.trim().replace(/^["']|["']$/g, '');
@@ -212,8 +209,7 @@ async function generateSummaryAndTitle(sessionId) {
           content: summaryText
         }
       ],
-      temperature: 0.3,
-      max_tokens: 100,
+      max_completion_tokens: 100,
       response_format: { type: 'json_object' }
     });
 
