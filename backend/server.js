@@ -119,6 +119,9 @@ async function generateSummaryAndTitle(sessionId) {
 
     if (!turns || turns.length === 0) {
       console.log(`⚠️  No turns found for session ${sessionId}`);
+      // Update status to 'skipped' to prevent retries
+      const updateStmt = db.prepare('UPDATE sessions SET summary_status = ? WHERE id = ?');
+      await updateStmt.run('skipped', sessionId);
       return;
     }
 
