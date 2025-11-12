@@ -11,13 +11,13 @@ We deploy from the **repo root** with Root Directory = `.` in Railway dashboard.
 - **Start Command**: `bash start.sh` (wrapper that calls `backend/start.sh`)
 - **Build Config**: `nixpacks.toml` (at repo root)
 
-### Python-Only Service (Separate Agent Service)
+### Python-Only Service (If Needed in Future)
 
-**File**: `backend/railway-agent.json` (reference only)
-- **Purpose**: Separate Railway service that runs ONLY the Python agent
+**Files**: `backend/start-agent.sh` and `backend/nixpacks-agent.toml`
+- **Purpose**: If you create a separate Railway service that runs ONLY the Python agent
 - **Start Command**: `bash start-agent.sh`
 - **Build Config**: `backend/nixpacks-agent.toml`
-- **Note**: This is a reference file. If you create a separate Python service in Railway, copy these settings to the dashboard or use this file.
+- **Note**: Configure these settings directly in Railway dashboard if creating a separate service
 
 ## File Structure
 
@@ -26,11 +26,10 @@ shaw-app/
 ├── railway.json              ← Main service config (Node.js + Python)
 ├── nixpacks.toml             ← Main service build config
 ├── start.sh                  ← Wrapper script (calls backend/start.sh)
-├── backend/
-│   ├── start.sh              ← Actual startup script
-│   ├── start-agent.sh        ← Python-only startup script
-│   ├── nixpacks-agent.toml   ← Python-only build config
-│   └── railway-agent.json    ← Python-only service config (reference)
+└── backend/
+    ├── start.sh              ← Actual startup script
+    ├── start-agent.sh        ← Python-only startup script (if needed)
+    └── nixpacks-agent.toml   ← Python-only build config (if needed)
 ```
 
 ## Railway Dashboard Settings
@@ -55,4 +54,5 @@ shaw-app/
 ## Removed Files
 
 - ~~`backend/railway.json`~~ - Removed, no longer needed (replaced by root `railway.json`)
+- ~~`backend/railway-agent.json`~~ - Removed, not needed (configure Python service directly in dashboard if needed)
 
