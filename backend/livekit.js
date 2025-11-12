@@ -104,7 +104,10 @@ async function verifyAgentJoined(roomName, maxAttempts = 10, delayMs = 500) {
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      const room = await roomService.getRoom(roomName);
+      // List rooms and find the one we're looking for
+      // Note: listRooms() returns all rooms, we filter for the one we want
+      const rooms = await roomService.listRooms();
+      const room = rooms && rooms.find ? rooms.find(r => r.name === roomName) : null;
       
       if (!room) {
         // Room may not exist yet - LiveKit creates rooms automatically when participants join
@@ -114,12 +117,14 @@ async function verifyAgentJoined(roomName, maxAttempts = 10, delayMs = 500) {
         continue;
       }
 
+      // Get participants for this room
+      const participants = await roomService.listParticipants(roomName);
+      
       // Check for agent participants
       // LiveKit agents can have various identity formats, so we check for common patterns
-      const participants = room.participants || [];
       
       // Log all participants for debugging
-      if (participants.length > 0) {
+      if (participants && participants.length > 0) {
         console.log(`👥 Room ${roomName} has ${participants.length} participant(s):`);
         participants.forEach(p => {
           console.log(`   - ${p.identity || 'unknown'} (SID: ${p.sid || 'unknown'})`);
@@ -127,7 +132,7 @@ async function verifyAgentJoined(roomName, maxAttempts = 10, delayMs = 500) {
       }
       
       // Look for agent participant - check multiple patterns
-      const agentParticipant = participants.find(p => {
+      const agentParticipant = participants && participants.find ? participants.find(p => {
         const identity = (p.identity || '').toLowerCase();
         return (
           identity.startsWith('agent') || 
@@ -139,7 +144,7 @@ async function verifyAgentJoined(roomName, maxAttempts = 10, delayMs = 500) {
           // Check if it's not a typical client identity (clients usually have user- prefix or device- prefix)
           (!identity.startsWith('user-') && !identity.startsWith('device-') && identity.length > 0)
         );
-      });
+      }) : null;
 
       if (agentParticipant) {
         console.log(`✅ Agent verified in room ${roomName}: ${agentParticipant.identity} (SID: ${agentParticipant.sid})`);
@@ -147,7 +152,7 @@ async function verifyAgentJoined(roomName, maxAttempts = 10, delayMs = 500) {
       }
 
       // If we have participants but none match agent patterns, log them for debugging
-      if (participants.length > 0) {
+      if (participants && participants.length > 0) {
         console.log(`⏳ [${attempt}/${maxAttempts}] Found ${participants.length} participant(s) but none match agent patterns`);
         console.log(`   Participant identities: ${participants.map(p => p.identity || 'unknown').join(', ')}`);
       } else {
