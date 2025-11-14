@@ -10,7 +10,7 @@
 - User wanted LiveKit Inference (MCP) for LLM + TTS
 
 **Fix:**
-- Changed to use LiveKit Inference LLM: `llm="openai/gpt-5.1-mini"` (string descriptor)
+- Changed to use LiveKit Inference LLM: `llm="openai/gpt-4o-mini"` (string descriptor)
 - LiveKit Inference automatically handles the connection
 - TTS already correct: `tts="cartesia/sonic-3:..."` or `tts="elevenlabs/..."`
 
@@ -28,7 +28,7 @@ agent_session = AgentSession(
 
 **After:**
 ```python
-llm_model = model or "openai/gpt-5.1-mini"  # ✅ LiveKit Inference
+llm_model = model or "openai/gpt-4o-mini"  # ✅ LiveKit Inference
 agent_session = AgentSession(
     llm=llm_model,  # ✅ LiveKit Inference LLM
     tts=voice  # ✅ LiveKit Inference TTS
@@ -176,7 +176,7 @@ This means:
 
 ## Key Changes Made
 
-1. ✅ **Switched to LiveKit Inference** - Using `llm="openai/gpt-5.1-mini"` instead of OpenAI Realtime
+1. ✅ **Switched to LiveKit Inference** - Using `llm="openai/gpt-4o-mini"` instead of OpenAI Realtime
 2. ✅ **Better agent name handling** - Configurable via env var, logged on startup
 3. ✅ **Room auto-creation awareness** - Verification understands rooms are auto-created
 4. ✅ **Enhanced logging** - More diagnostic information throughout
@@ -193,4 +193,3 @@ If agent still doesn't join after these fixes, the issue is likely:
 - Agent worker process not running (check Railway logs)
 - Agent worker not connecting to LiveKit Cloud (check agent logs)
 - Network/firewall issues preventing worker connection
-

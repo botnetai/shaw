@@ -9,6 +9,7 @@ struct CallScreen: View {
     @ObservedObject private var callCoordinator = AssistantCallCoordinator.shared
     @ObservedObject private var appCoordinator = AppCoordinator.shared
     @ObservedObject private var settings = UserSettings.shared
+    @StateObject private var subscriptionManager = SubscriptionManager.shared
     @State private var showErrorAlert = false
     @State private var selectedLoggingOption: LoggingOption?
     
@@ -22,27 +23,6 @@ struct CallScreen: View {
             VStack(spacing: 0) {
                 if callCoordinator.callState == .idle {
                     Form {
-                        Section {
-                            NavigationLink(destination: LanguagePickerView(settings: settings)) {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("Speaking language")
-                                            .font(.subheadline)
-                                            .foregroundColor(.secondary)
-                                        Text(settings.selectedLanguage.displayName)
-                                            .font(.body)
-                                    }
-                                    Spacer()
-                                }
-                            }
-                            .accessibilityLabel("Language: \(settings.selectedLanguage.displayName)")
-                            .accessibilityHint("Double tap to change language")
-                        } header: {
-                            Text("Language")
-                        } footer: {
-                            Text("Sets speech recognition and assistant defaults. You can pick any voice regardless of language.")
-                        }
-
                         Section {
                             NavigationLink(destination: VoicePickerView(settings: settings)) {
                                 HStack {
@@ -92,6 +72,27 @@ struct CallScreen: View {
                         }
 
                         Section {
+                            NavigationLink(destination: LanguagePickerView(settings: settings)) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Speaking language")
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                        Text(settings.selectedLanguage.displayName)
+                                            .font(.body)
+                                    }
+                                    Spacer()
+                                }
+                            }
+                            .accessibilityLabel("Language: \(settings.selectedLanguage.displayName)")
+                            .accessibilityHint("Double tap to change language")
+                        } header: {
+                            Text("Language")
+                        } footer: {
+                            Text("Sets speech recognition and assistant defaults. Voice options are filtered on the next screen.")
+                        }
+
+                        Section {
                             LoggingOptionsView(
                                 selectedOption: $selectedLoggingOption,
                                 settings: settings
@@ -129,12 +130,20 @@ struct CallScreen: View {
                     .padding(.horizontal, 24)
                     .padding(.bottom, 32)
             }
+            
+            if callCoordinator.callState == .connecting || callCoordinator.callState == .disconnecting {
+                ConnectingOverlayView(isDisconnecting: callCoordinator.callState == .disconnecting)
+                    .transition(.opacity)
+            }
         }
         .navigationTitle("Call")
         .navigationBarTitleDisplayMode(.large)
         .onAppear {
             if selectedLoggingOption == nil {
                 selectedLoggingOption = settings.loggingEnabled ? .enabled : .disabled
+            }
+            if !subscriptionManager.state.isActive && settings.selectedModel.requiresPro {
+                settings.selectedModel = .gpt4oMini
             }
         }
         .alert("Error", isPresented: $showErrorAlert) {
@@ -348,20 +357,61 @@ struct ErrorIndicatorView: View {
     }
 }
 
+struct ConnectingOverlayView: View {
+    let isDisconnecting: Bool
+
+    private var title: String {
+        isDisconnecting ? "Ending your call" : "Connecting to your assistant"
+    }
+
+    private var subtitle: String {
+        if isDisconnecting {
+            return "Wrapping up the conversation and saving the transcript."
+        }
+        return "Setting up the room and dispatching the AI. This only takes a few seconds."
+    }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                .scaleEffect(1.4)
+
+            Text(title)
+                .font(.headline)
+                .foregroundColor(.white)
+
+            Text(subtitle)
+                .font(.subheadline)
+                .foregroundColor(.white.opacity(0.9))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black.opacity(0.5))
+        .background(.ultraThinMaterial)
+        .ignoresSafeArea()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Connecting to your assistant. Please wait.")
+    }
+}
+
 struct ModelPickerView: View {
     @ObservedObject var settings: UserSettings
     @StateObject private var subscriptionManager = SubscriptionManager.shared
+    @State private var showUpgradeAlert = false
 
     var body: some View {
         List {
             ForEach(AIModelProvider.allCases, id: \.self) { provider in
                 let models = AIModel.models(for: provider)
-                Section {
+                Section(provider.displayName) {
                     ForEach(models, id: \.self) { model in
                         Button {
                             if model.requiresPro && !subscriptionManager.state.isActive {
-                                // Don't allow selection of Pro models for non-Pro users
                                 HapticFeedbackService.shared.warning()
+                                showUpgradeAlert = true
                                 return
                             }
                             HapticFeedbackService.shared.selection()
@@ -373,16 +423,9 @@ struct ModelPickerView: View {
                                         Text(model.displayName)
                                             .font(.headline)
                                             .foregroundColor(.primary)
-                                        
+
                                         if model.requiresPro && !subscriptionManager.state.isActive {
-                                            Text("PRO")
-                                                .font(.caption2)
-                                                .fontWeight(.bold)
-                                                .foregroundColor(.white)
-                                                .padding(.horizontal, 4)
-                                                .padding(.vertical, 1)
-                                                .background(Color.blue)
-                                                .cornerRadius(3)
+                                            ProBadge()
                                         }
                                     }
                                     Text(model.description)
@@ -403,25 +446,17 @@ struct ModelPickerView: View {
                             .animation(.easeInOut(duration: 0.2), value: settings.selectedModel == model)
                         }
                         .buttonStyle(.plain)
-                        .disabled(model.requiresPro && !subscriptionManager.state.isActive)
-                        .opacity(model.requiresPro && !subscriptionManager.state.isActive ? 0.5 : 1.0)
-                    }
-                } header: {
-                    HStack {
-                        Text(provider.displayName)
-                        if models.contains(where: { $0.requiresPro }) {
-                            Text("PRO")
-                                .font(.caption2)
-                                .fontWeight(.bold)
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.blue)
-                                .cornerRadius(4)
-                        }
                     }
                 }
             }
+        }
+        .alert("Shaw Pro required", isPresented: $showUpgradeAlert) {
+            Button("Later", role: .cancel) { }
+            Button("Upgrade") {
+                AppCoordinator.shared.navigate(to: .paywall)
+            }
+        } message: {
+            Text("This model is available for Shaw Pro members. Upgrade to unlock it or pick GPT-4o Mini.")
         }
         .navigationTitle("AI Model")
         .navigationBarTitleDisplayMode(.large)
@@ -485,18 +520,41 @@ struct LanguagePickerView: View {
 struct VoicePickerView: View {
     @ObservedObject var settings: UserSettings
     @StateObject private var subscriptionManager = SubscriptionManager.shared
+    
+    private var languages: [VoiceLanguage] {
+        TTSVoice.availableLanguages()
+    }
 
     private var providerSections: [(provider: TTSProvider, voices: [TTSVoice])] {
         TTSProvider.allCases.compactMap { provider in
-            let voices = TTSVoice.voices(for: provider)
+            let voices = TTSVoice.voices(for: provider, language: settings.selectedLanguage)
             return voices.isEmpty ? nil : (provider, voices)
         }
     }
 
     var body: some View {
         List {
+            Section {
+                if languages.isEmpty {
+                    Text("No languages configured. Please update the voice list.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                } else {
+                    Picker("Language", selection: $settings.selectedLanguage) {
+                        ForEach(languages) { language in
+                            Text(language.displayName).tag(language)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+            } header: {
+                Text("Language")
+            } footer: {
+                Text("Only voices that support the selected language are shown below.")
+            }
+
             if providerSections.isEmpty {
-                Text("No voices are available. Check your configuration.")
+                Text("No voices are available for \(settings.selectedLanguage.displayName).")
                     .font(.footnote)
                     .foregroundColor(.secondary)
                     .padding(.vertical, 8)
@@ -562,6 +620,24 @@ struct VoicePickerView: View {
         }
         .navigationTitle("Voice")
         .navigationBarTitleDisplayMode(.large)
+        .onAppear {
+            if !languages.contains(settings.selectedLanguage), let first = languages.first {
+                settings.selectedLanguage = first
+            }
+        }
+    }
+}
+
+struct ProBadge: View {
+    var body: some View {
+        Text("PRO")
+            .font(.caption2)
+            .fontWeight(.bold)
+            .foregroundColor(.white)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 1)
+            .background(Color.blue)
+            .cornerRadius(3)
     }
 }
 

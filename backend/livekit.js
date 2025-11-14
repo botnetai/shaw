@@ -208,7 +208,7 @@ async function dispatchAgentWithRetry(roomName, sessionId, model, voice, realtim
   const agentMetadata = JSON.stringify({
     session_id: sessionId,
     realtime: realtime || false,
-    model: model || 'openai/gpt-5.1-nano',
+    model: model || 'openai/gpt-4o-mini',
     voice: voice || (realtime ? 'alloy' : 'cartesia/sonic-3:9626c31c-bec5-4cca-baa8-f8ba9e84c8bc'),
     instructions: 'You are a helpful voice AI assistant for CarPlay. Keep responses concise and clear for safe driving.',
     tool_calling_enabled: toolCallingEnabled !== undefined ? toolCallingEnabled : true,
@@ -267,13 +267,14 @@ export async function dispatchAgentToRoom(roomName, sessionId, model, voice, rea
     const agentJoined = await verifyAgentJoined(roomName, 15, 500); // Check up to 15 times with 500ms delay (7.5s total)
     
     if (!agentJoined) {
-      console.error(`❌ CRITICAL: Agent dispatch succeeded but agent did not join room ${roomName}`);
+      const errorMessage = `Agent dispatch succeeded but agent did not join room ${roomName}`;
+      console.error(`❌ CRITICAL: ${errorMessage}`);
       console.error(`   Dispatch ID: ${dispatch.id}`);
       console.error(`   This may indicate the agent worker is not running or not responding to dispatches`);
       console.error(`   Check agent logs: tail -f /tmp/agent.log`);
-      
-      // Don't throw error - allow client to connect anyway, but log the issue
-      // The client will timeout if agent doesn't join, but at least we've logged the problem
+      const error = new Error('AGENT_JOIN_TIMEOUT');
+      error.details = { roomName, sessionId, dispatchId: dispatch.id };
+      throw error;
     } else {
       console.log(`✅ Agent successfully joined room ${roomName} - ready for conversation`);
     }

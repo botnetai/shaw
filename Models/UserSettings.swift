@@ -89,15 +89,9 @@ class UserSettings: ObservableObject {
         // Load selected model
         if let data = UserDefaults.standard.data(forKey: "selectedModel"),
            let model = try? JSONDecoder().decode(AIModel.self, from: data) {
-            // Migrate from old defaults to new default (GPT-5.1 Nano)
-            // This ensures users get the latest default even if they had an old default saved
-            if model == .gpt51Mini {
-                self.selectedModel = .gpt51Nano
-            } else {
-                self.selectedModel = model
-            }
+            self.selectedModel = model
         } else {
-            self.selectedModel = .gpt51Nano
+            self.selectedModel = .gpt4oMini
         }
 
         let storedLanguage = UserDefaults.standard.string(forKey: "selectedLanguage")
@@ -111,8 +105,7 @@ class UserSettings: ObservableObject {
         } else {
             storedVoice = nil
         }
-        let initialVoice = storedVoice ?? TTSVoice.default
-        var resolvedVoice = initialVoice
+        let resolvedVoice = storedVoice ?? TTSVoice.default
 
         if resolvedVoice.language != resolvedLanguage {
             resolvedLanguage = resolvedVoice.language

@@ -208,6 +208,7 @@ enum AIModelProvider: String, Codable, CaseIterable {
     case openai
     case anthropic
     case google
+    case xai
     case other
 
     var displayName: String {
@@ -215,16 +216,17 @@ enum AIModelProvider: String, Codable, CaseIterable {
         case .openai: return "OpenAI"
         case .anthropic: return "Anthropic"
         case .google: return "Google"
+        case .xai: return "xAI"
         case .other: return "Other"
         }
     }
 }
 
 enum AIModel: String, Codable, CaseIterable {
-    // OpenAI GPT-5.1 Series
-    case gpt51 = "openai/gpt-5.1"
-    case gpt51Mini = "openai/gpt-5.1-mini"
-    case gpt51Nano = "openai/gpt-5.1-nano"
+    // OpenAI GPT-4o Series
+    case gpt4o = "openai/gpt-4o"
+    case gpt4oMini = "openai/gpt-4o-mini"
+    case gpt41Mini = "openai/gpt-4.1-mini"
 
     // Anthropic Claude 4.5 Series
     case claudeSonnet45 = "claude-sonnet-4-5"
@@ -235,9 +237,9 @@ enum AIModel: String, Codable, CaseIterable {
     case gemini25Flash = "google/gemini-2.5-flash"
     case gemini25FlashLite = "google/gemini-2.5-flash-lite"
 
-    // Google Gemini 2.0 Series
-    case gemini20Flash = "google/gemini-2.0-flash"
-    case gemini20FlashLite = "google/gemini-2.0-flash-lite"
+    // xAI Grok Series
+    case grok4 = "xai/grok-4"
+    case grok4Mini = "xai/grok-4-mini"
 
     // Other Models
     case deepseekV3 = "deepseek-ai/deepseek-v3"
@@ -252,24 +254,20 @@ enum AIModel: String, Codable, CaseIterable {
         }
 
         switch value {
-        case "openai/gpt-5":
-            self = .gpt51
-        case "openai/gpt-5-mini":
-            self = .gpt51Mini
-        case "openai/gpt-5-nano":
-            self = .gpt51Nano
-        case "openai/gpt-4.1":
-            self = .gpt51
-        case "openai/gpt-4.1-mini":
-            self = .gpt51Mini
-        case "openai/gpt-4.1-nano":
-            self = .gpt51Nano
-        case "openai/gpt-4o":
-            self = .gpt51
-        case "openai/gpt-4o-mini":
-            self = .gpt51Mini
-        case "openai/gpt-oss-120b":
-            self = .gpt51
+        case "openai/gpt-5", "openai/gpt-4.1", "openai/gpt-4o", "openai/gpt-oss-120b":
+            self = .gpt4o
+        case "openai/gpt-5-mini", "openai/gpt-4o-mini":
+            self = .gpt4oMini
+        case "openai/gpt-5-nano", "openai/gpt-4.1-mini", "openai/gpt-4.1-nano":
+            self = .gpt41Mini
+        case "google/gemini-2.0-flash":
+            self = .gemini25Flash
+        case "google/gemini-2.0-flash-lite":
+            self = .gemini25FlashLite
+        case "xai/grok-2":
+            self = .grok4
+        case "xai/grok-2-mini":
+            self = .grok4Mini
         default:
             throw DecodingError.dataCorruptedError(
                 in: container,
@@ -285,13 +283,14 @@ enum AIModel: String, Codable, CaseIterable {
 
     var provider: AIModelProvider {
         switch self {
-        case .gpt51, .gpt51Mini, .gpt51Nano:
+        case .gpt4o, .gpt4oMini, .gpt41Mini:
             return .openai
         case .claudeSonnet45, .claudeHaiku45:
             return .anthropic
-        case .gemini25Pro, .gemini25Flash, .gemini25FlashLite,
-             .gemini20Flash, .gemini20FlashLite:
+        case .gemini25Pro, .gemini25Flash, .gemini25FlashLite:
             return .google
+        case .grok4, .grok4Mini:
+            return .xai
         case .deepseekV3:
             return .other
         }
@@ -299,39 +298,39 @@ enum AIModel: String, Codable, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .gpt51: return "GPT-5.1"
-        case .gpt51Mini: return "GPT-5.1 Mini"
-        case .gpt51Nano: return "GPT-5.1 Nano"
+        case .gpt4o: return "GPT-4o"
+        case .gpt4oMini: return "GPT-4o Mini"
+        case .gpt41Mini: return "GPT-4.1 Mini"
         case .claudeSonnet45: return "Claude Sonnet 4.5"
         case .claudeHaiku45: return "Claude Haiku 4.5"
         case .gemini25Pro: return "Gemini 2.5 Pro"
         case .gemini25Flash: return "Gemini 2.5 Flash"
         case .gemini25FlashLite: return "Gemini 2.5 Flash Lite"
-        case .gemini20Flash: return "Gemini 2.0 Flash"
-        case .gemini20FlashLite: return "Gemini 2.0 Flash Lite"
+        case .grok4: return "Grok 4"
+        case .grok4Mini: return "Grok 4 Mini"
         case .deepseekV3: return "DeepSeek V3"
         }
     }
 
     var description: String {
         switch self {
-        case .gpt51: return "GPT-5.1 - Next generation reasoning"
-        case .gpt51Mini: return "GPT-5.1 Mini - Fast and capable"
-        case .gpt51Nano: return "GPT-5.1 Nano - Lightning quick"
+        case .gpt4o: return "GPT-4o - Flagship multimodal reasoning"
+        case .gpt4oMini: return "GPT-4o Mini - Fast and capable"
+        case .gpt41Mini: return "GPT-4.1 Mini - Lightning quick"
         case .claudeSonnet45: return "Most capable Claude - Best for complex tasks"
         case .claudeHaiku45: return "Fast Claude - Great for quick responses"
         case .gemini25Pro: return "Most capable Gemini - Best for reasoning"
         case .gemini25Flash: return "Fast multimodal Gemini"
         case .gemini25FlashLite: return "Ultra-fast Gemini"
-        case .gemini20Flash: return "Gemini 2.0 - Fast and capable"
-        case .gemini20FlashLite: return "Gemini 2.0 - Lightning fast"
+        case .grok4: return "Grok 4 - Cutting-edge xAI model"
+        case .grok4Mini: return "Grok 4 Mini - Faster Grok variant"
         case .deepseekV3: return "DeepSeek V3 - Open source reasoning"
         }
     }
 
     var requiresPro: Bool {
         switch self {
-        case .gpt51, .claudeSonnet45, .gemini25Pro:
+        case .gpt4o, .claudeSonnet45, .gemini25Pro, .grok4:
             return true
         default:
             return false

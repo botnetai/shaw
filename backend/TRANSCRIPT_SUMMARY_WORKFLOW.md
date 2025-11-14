@@ -52,12 +52,13 @@ This document describes the complete workflow for capturing conversation transcr
 ### 7. Summary Generation
 - **Function**: `generateSummaryAndTitle()` in `backend/server.js`
 - **Steps**:
-  1. **Pull Transcript**: Queries all turns for the session, ordered by timestamp
-  2. **Format Transcript**: Converts to `speaker: text` format
-  3. **Generate Summary**: Uses GPT-5.1 Nano to create summary
-  4. **Generate Title**: Uses GPT-5.1 Nano to create short title (runs in parallel with summary request)
-  5. **Save Summary**: Inserts into `summaries` table with foreign key to `sessions(id)` — action items & tags are stored as empty arrays for compatibility
-  6. **Update Status**: Sets `summary_status = 'ready'` on session
+  1. **Verify Session Ended**: Skips generation unless `ended_at` is set
+  2. **Pull Transcript**: Queries all turns for the session, ordered by timestamp
+  3. **Format Transcript**: Converts to `speaker: text` format
+  4. **Generate Summary**: Uses a single GPT-4o Mini prompt once the room is over
+  5. **Generate Title**: Issues a second GPT-4o Mini prompt using the summary text as context
+  6. **Save Summary**: Inserts into `summaries` table with foreign key to `sessions(id)` — action items & tags are stored as empty arrays for compatibility
+  7. **Update Status**: Sets `summary_status = 'ready'` on session
 - **Location**: `backend/server.js` line 107-256
 
 ### 8. Summary Retrieval

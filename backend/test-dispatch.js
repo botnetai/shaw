@@ -24,7 +24,7 @@ async function testDispatch() {
   const agentMetadata = {
     session_id: `test-session-${Date.now()}`,
     realtime: false,
-    model: 'openai/gpt-5.1-mini',
+    model: 'openai/gpt-4o-mini',
     voice: 'cartesia/sonic-3:...',
     tool_calling_enabled: true,
     web_search_enabled: true,

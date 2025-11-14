@@ -5,6 +5,20 @@
 
 import Foundation
 
+private struct APIErrorResponse: Decodable {
+    let error: String?
+    let message: String?
+    let model: String?
+    let suggestedModel: String?
+
+    enum CodingKeys: String, CodingKey {
+        case error
+        case message
+        case model
+        case suggestedModel = "suggested_model"
+    }
+}
+
 class SessionLogger {
     static let shared = SessionLogger()
 
@@ -62,6 +76,13 @@ class SessionLogger {
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
+            if let apiError = try? JSONDecoder().decode(APIErrorResponse.self, from: data),
+               apiError.error == "PRO_REQUIRED" {
+                throw SessionLoggerError.proModelRestricted(
+                    model: apiError.model,
+                    suggestedModel: apiError.suggestedModel
+                )
+            }
             let errorMessage = String(data: data, encoding: .utf8) ?? "Server error"
             print("❌ Server error (\(httpResponse.statusCode)): \(errorMessage)")
             throw SessionLoggerError.serverError(statusCode: httpResponse.statusCode, message: errorMessage)
@@ -359,6 +380,7 @@ enum SessionLoggerError: LocalizedError {
     case unauthorized
     case sessionNotFound
     case serverError(statusCode: Int, message: String)
+    case proModelRestricted(model: String?, suggestedModel: String?)
     
     var errorDescription: String? {
         switch self {
@@ -372,6 +394,10 @@ enum SessionLoggerError: LocalizedError {
             return "Session not found on server. The database may have been cleared."
         case .serverError(let statusCode, let message):
             return "Server error (\(statusCode)): \(message)"
+        case .proModelRestricted(let model, let suggested):
+            let modelName = model.flatMap { AIModel(rawValue: $0)?.displayName } ?? "This model"
+            let fallback = suggested.flatMap { AIModel(rawValue: $0)?.displayName } ?? AIModel.gpt4oMini.displayName
+            return "\(modelName) requires Shaw Pro. Switch to \(fallback) or another non-Pro model in Settings → AI Model."
         }
     }
 }

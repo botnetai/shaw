@@ -141,6 +141,19 @@ if (!process.env.OPENAI_API_KEY) {
 // Generate summary and title from transcription
 async function generateSummaryAndTitle(sessionId) {
   try {
+    const sessionRowStmt = db.prepare('SELECT ended_at FROM sessions WHERE id = ?');
+    const sessionRow = await sessionRowStmt.get(sessionId);
+
+    if (!sessionRow) {
+      console.warn(`⚠️  Session ${sessionId} not found when attempting summary generation`);
+      return;
+    }
+
+    if (!sessionRow.ended_at) {
+      console.log(`ℹ️  Session ${sessionId} has not ended yet. Skipping summary generation until ended.`);
+      return;
+    }
+
     console.log(`📝 Generating summary for session ${sessionId}`);
 
     // Get all turns for this session
@@ -165,44 +178,43 @@ async function generateSummaryAndTitle(sessionId) {
     // Format transcript
     const transcript = turns.map(t => `${t.speaker}: ${t.text}`).join('\n');
 
-    // Kick off summary + title generation in parallel
-    const summaryPromise = openai.chat.completions.create({
-      model: 'gpt-5.1-nano',
+    // Generate summary using GPT-4o Mini via OpenAI API
+    const summaryResponse = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
-          content: 'You are a helpful assistant that summarizes voice conversations. Provide a concise narrative that captures the major topics, decisions, and follow-ups. Respond with only the summary text.'
+          content: 'You are a helpful assistant that summarizes voice conversations. Provide a concise summary that captures the key topics, decisions, and action items discussed.'
         },
         {
           role: 'user',
-          content: `Transcript:\n${transcript}`
+          content: `Summarize this conversation:\n\n${transcript}`
         }
       ],
       max_completion_tokens: 500
     });
 
-    const titlePromise = openai.chat.completions.create({
-      model: 'gpt-5.1-nano',
+    const summaryText = summaryResponse.choices[0]?.message?.content?.trim();
+    if (!summaryText) {
+      console.error('❌ GPT-4o Mini returned empty summary text:', JSON.stringify(summaryResponse, null, 2));
+      throw new Error('GPT-4o Mini returned empty summary text');
+    }
+
+    // Generate title based on the completed summary for consistency
+    const titleResponse = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
-          content: 'Generate a short, descriptive title (3-6 words) for this conversation. Return only the title, no punctuation or quotes.'
+          content: 'Generate a short, descriptive title (3-6 words) for this conversation summary. Return only the title, no quotes or extra text.'
         },
         {
           role: 'user',
-          content: `Transcript:\n${transcript}`
+          content: summaryText
         }
       ],
       max_completion_tokens: 20
     });
-
-    const [summaryResponse, titleResponse] = await Promise.all([summaryPromise, titlePromise]);
-
-    const summaryText = summaryResponse.choices[0]?.message?.content?.trim();
-    if (!summaryText) {
-      console.error('❌ GPT-5.1 Nano returned empty summary text:', JSON.stringify(summaryResponse, null, 2));
-      throw new Error('GPT-5.1 Nano returned empty summary text');
-    }
 
     const rawTitle = titleResponse.choices[0]?.message?.content || 'Untitled Session';
     const title = rawTitle.trim().replace(/^["']|["']$/g, '');
@@ -477,25 +489,29 @@ app.post('/v1/sessions/start', authenticateToken, async (req, res) => {
     // See: https://docs.livekit.io/agents/models/#inference
     const validModels = [
       // OpenAI models available through LiveKit Inference
-      'openai/gpt-5.1',
-      'openai/gpt-5.1-mini',
-      'openai/gpt-5.1-nano',
+      'openai/gpt-4o',
+      'openai/gpt-4o-mini',
+      'openai/gpt-4.1-mini',
       // Anthropic models available through LiveKit Inference
       'claude-sonnet-4-5',
       'claude-haiku-4-5',
       // Google models available through LiveKit Inference
       'google/gemini-2.5-pro',
-      'google/gemini-2.5-flash-lite'
+      'google/gemini-2.5-flash-lite',
+      // xAI Grok models
+      'xai/grok-4',
+      'xai/grok-4-mini'
     ];
 
     // Pro-only models require active subscription
     const proOnlyModels = [
-      'openai/gpt-5.1',
+      'openai/gpt-4o',
       'claude-sonnet-4-5',
-      'google/gemini-2.5-pro'
+      'google/gemini-2.5-pro',
+      'xai/grok-4'
     ];
 
-    const selectedModel = useRealtimeMode ? null : (model && validModels.includes(model) ? model : 'openai/gpt-5.1-nano');
+    const selectedModel = useRealtimeMode ? null : (model && validModels.includes(model) ? model : 'openai/gpt-4o-mini');
 
     // Check if user is trying to use a Pro-only model without Pro subscription
     if (selectedModel && proOnlyModels.includes(selectedModel)) {
@@ -503,8 +519,9 @@ app.post('/v1/sessions/start', authenticateToken, async (req, res) => {
       if (!hasPro) {
         return res.status(403).json({
           error: 'PRO_REQUIRED',
-          message: 'This model requires a Pro subscription.',
-          model: selectedModel
+          message: 'Shaw Pro is required to use this model. Please switch to GPT-4o Mini or another non-Pro option.',
+          model: selectedModel,
+          suggested_model: 'openai/gpt-4o-mini'
         });
       }
     }
@@ -546,30 +563,35 @@ app.post('/v1/sessions/start', authenticateToken, async (req, res) => {
     console.log(`  Language: ${normalizedLanguage} (${languageLabel})`);
     console.log(`  Tool calling: ${normalizedToolCalling ? 'enabled' : 'disabled'} | Web search: ${normalizedWebSearch ? 'enabled' : 'disabled'}`);
 
-    // Dispatch agent to room with verification (runs in background, but logs verification results)
-    // Verification ensures the agent actually joins before the client starts speaking
-    dispatchAgentToRoom(
-      roomName,
-      sessionId,
-      selectedModel,
-      selectedVoice,
-      useRealtimeMode,
-      normalizedToolCalling,
-      normalizedWebSearch,
-      normalizedLanguage,
-      languageLabel,
-      true
-    )
-      .then(dispatch => {
+    try {
+      const dispatch = await dispatchAgentToRoom(
+        roomName,
+        sessionId,
+        selectedModel,
+        selectedVoice,
+        useRealtimeMode,
+        normalizedToolCalling,
+        normalizedWebSearch,
+        normalizedLanguage,
+        languageLabel,
+        true
+      );
+      if (dispatch?.id) {
         console.log(`✅ Agent dispatch completed for session ${sessionId} - dispatch ID: ${dispatch.id}`);
-      })
-      .catch(error => {
-        console.error(`❌ CRITICAL: Failed to dispatch agent for session ${sessionId}:`, error.message);
-        console.error(`   Room: ${roomName}`);
-        console.error(`   This session may not work - agent will not join the room`);
-        console.error(`   Check if agent worker is running: ps aux | grep "agent.py"`);
-        console.error(`   Check agent logs: tail -f /tmp/agent.log`);
+      }
+    } catch (error) {
+      console.error(`❌ CRITICAL: Failed to dispatch agent for session ${sessionId}:`, error.message);
+      console.error(`   Room: ${roomName}`);
+      console.error(`   This session may not work - agent will not join the room`);
+      console.error(`   Check if agent worker is running: ps aux | grep "agent.py"`);
+      console.error(`   Check agent logs: tail -f /tmp/agent.log`);
+      const statusCode = error.message === 'AGENT_JOIN_TIMEOUT' ? 503 : 500;
+      return res.status(statusCode).json({
+        error: error.message || 'AGENT_DISPATCH_FAILED',
+        message: 'We could not connect the assistant. Please try again in a few seconds.',
+        room: roomName
       });
+    }
 
     res.json({
       session_id: sessionId,
@@ -577,7 +599,7 @@ app.post('/v1/sessions/start', authenticateToken, async (req, res) => {
       livekit_token: livekitToken,
       room_name: roomName,
       mode: useRealtimeMode ? 'realtime' : 'hybrid',
-      model: selectedModel || (useRealtimeMode ? 'openai-realtime' : 'openai/gpt-5.1-nano'),
+      model: selectedModel || (useRealtimeMode ? 'openai-realtime' : 'openai/gpt-4o-mini'),
       voice: selectedVoice,
       language: normalizedLanguage
     });
